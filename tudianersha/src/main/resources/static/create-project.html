@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建行程 - 途点儿啥旅行规划平台</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 高德地图API - 安全密钥必须在加载API之前设置 -->
+    <script>
+        window._AMapSecurityConfig = {
+            securityJsCode: '07ec5b4c0314b96e44928e25dede60f7'
+        };
+    </script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=bf0e97cd7a4c3c6aaa8ecf3dd7485381&plugin=AMap.AutoComplete,AMap.PlaceSearch"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #f9fafb;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        .left-section {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .right-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .section-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 12px;
+        }
+        
+        .section-subtitle {
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+        
+        .section-desc {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 24px;
+        }
+        
+        .interest-card {
+            background: #f8f9ff;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .interest-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .interest-card-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        
+        .icon-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .icon-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .icon-item.selected {
+            border-color: #667eea;
+            background: #eef2ff;
+        }
+        
+        .icon-item-icon {
+            font-size: 32px;
+        }
+        
+        .icon-item-label {
+            font-size: 14px;
+            color: #374151;
+            font-weight: 500;
+        }
+        
+        .location-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .location-item {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .location-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        .location-item.selected {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .location-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .location-number {
+            width: 28px;
+            height: 28px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .location-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .location-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        
+        .location-desc {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.6;
+            padding-left: 40px;
+        }
+        
+        .budget-summary {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .budget-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .budget-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .budget-item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .budget-item-info {
+            flex: 1;
+            margin-left: 12px;
+        }
+        
+        .budget-item-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .budget-item-desc {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .budget-item-price {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+        
+        .budget-item-price.editable {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .budget-item-price.editable:hover {
+            background: #f3f4f6;
+        }
+        
+        .budget-item-price.blue {
+            color: #3b82f6;
+        }
+        
+        .budget-item-price.green {
+            color: #10b981;
+        }
+        
+        .budget-total {
+            background: #ecfdf5;
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .budget-total-label {
+            font-size: 14px;
+            color: #059669;
+            margin-bottom: 4px;
+        }
+        
+        .budget-total-amount {
+            font-size: 32px;
+            font-weight: 700;
+            color: #10b981;
+        }
+        
+        .budget-total-unit {
+            font-size: 16px;
+            font-weight: 400;
+        }
+        
+        .edit-link {
+            color: #667eea;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .edit-link:hover {
+            text-decoration: underline;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+        }
+        
+        .checkbox-content {
+            flex: 1;
+        }
+        
+        .checkbox-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        
+        .checkbox-desc {
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+        }
+        
+        .btn-lg {
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            flex: 1;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-add-location {
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            background: white;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-add-location:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f8f9ff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                <div style="background: #3b82f6; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6; line-height: 1.2;">途点儿啥</div>
+                    <div style="font-size: 0.75rem; color: #6b7280;">让旅途不糊涂</div>
+                </div>
+            </a>
+            <div class="navbar-menu">
+                <a href="/index.html">返回首页</a>
+                <a href="#" onclick="auth.logout(); return false;">退出登录</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="main-container">
+        <!-- Left Section -->
+        <div class="left-section">
+            <h1 class="section-title">完善您的旅行偏好</h1>
+            
+            <form id="createProjectForm">
+                <!-- Basic Info (Hidden but required) -->
+                <input type="hidden" name="projectName" id="projectName" value="">
+                <input type="hidden" name="destination" id="destination" value="">
+                <input type="hidden" name="days" id="days" value="7">
+                
+                <!-- 旅行基本信息 -->
+                <div class="interest-card" style="margin-bottom: 24px;">
+                    <div class="interest-card-header">
+                        <div class="interest-card-title">
+                            <span style="color: #667eea;">✓</span>
+                            <span>旅行基本信息</span>
+                            <span style="font-size: 13px; color: #9ca3af; font-weight: 400;">请填写旅行的目的地和时间</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; gap: 16px;">
+                        <!-- 目的地 -->
+                        <div style="position: relative;">
+                            <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">
+                                📍 目的地 <span style="color: #ef4444; font-weight: 700;">*</span>
+                            </label>
+                            <input type="text" id="destinationInput" placeholder="必填：请从列表选择城市" 
+                                   autocomplete="off"
+                                   style="width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s;"
+                                   onfocus="this.style.borderColor='#667eea'"
+                                   onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                            <!-- 城市提示下拉列表 -->
+                            <div id="citySuggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #667eea; border-top: none; border-radius: 0 0 10px 10px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                <!-- 动态生成提示项 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 开始时间和结束时间 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div>
+                                <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">
+                                    📅 开始时间 <span style="color: #ef4444; font-weight: 700;">*</span>
+                                </label>
+                                <input type="date" id="startDateInput" 
+                                       style="width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s;"
+                                       onfocus="this.style.borderColor='#667eea'"
+                                       onblur="this.style.borderColor='#e5e7eb'" />
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">
+                                    📅 结束时间 <span style="color: #ef4444; font-weight: 700;">*</span>
+                                </label>
+                                <input type="date" id="endDateInput" 
+                                       style="width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s;"
+                                       onfocus="this.style.borderColor='#667eea'"
+                                       onblur="this.style.borderColor='#e5e7eb'" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Interest Preferences -->
+                <div class="interest-card">
+                    <div class="interest-card-header">
+                        <div class="interest-card-title">
+                            <span style="color: #667eea;">✓</span>
+                            <span>兴趣偏好</span>
+                            <span style="font-size: 13px; color: #9ca3af; font-weight: 400;">请选择2-7项您感兴趣的类型</span>
+                        </div>
+                        <a class="edit-link">已选择 0/5</a>
+                    </div>
+                    
+                    <div class="icon-grid">
+                        <div class="icon-item" data-interest="美食">
+                            <div class="icon-item-icon">🍔</div>
+                            <div class="icon-item-label">美食</div>
+                        </div>
+                        <div class="icon-item" data-interest="自然风光">
+                            <div class="icon-item-icon">⛰️</div>
+                            <div class="icon-item-label">自然风光</div>
+                        </div>
+                        <div class="icon-item" data-interest="历史古迹">
+                            <div class="icon-item-icon">🏛️</div>
+                            <div class="icon-item-label">历史古迹</div>
+                        </div>
+                        <div class="icon-item" data-interest="购物">
+                            <div class="icon-item-icon">🛍️</div>
+                            <div class="icon-item-label">购物</div>
+                        </div>
+                        <div class="icon-item" data-interest="摄影">
+                            <div class="icon-item-icon">📷</div>
+                            <div class="icon-item-label">摄影</div>
+                        </div>
+                        <div class="icon-item" data-interest="户外探险">
+                            <div class="icon-item-icon">📖</div>
+                            <div class="icon-item-label">户外探险</div>
+                        </div>
+                        <div class="icon-item" data-interest="拍照打卡">
+                            <div class="icon-item-icon">📸</div>
+                            <div class="icon-item-label">拍照打卡</div>
+                        </div>
+                        <div class="icon-item" data-interest="休闲放松">
+                            <div class="icon-item-icon">😊</div>
+                            <div class="icon-item-label">休闲放松</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 想去的景点 -->
+                <div>
+                    <div class="section-subtitle">🗺️ 想去的景点</div>
+                    <div class="section-desc">请输入您期待游玩的景点</div>
+                    
+                    <div class="location-list" id="likeLocationsList">
+                        <div class="location-item" data-location="like-1">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #10b981;">1</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">想去的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input like-poi-input" id="like-location-1" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#10b981'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-like-1" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #10b981; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如:故宫博物馆、当地美食街、网红打卡地等</div>
+                        </div>
+                        
+                        <div class="location-item" data-location="like-2">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #10b981;">2</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">想去的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input like-poi-input" id="like-location-2" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#10b981'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-like-2" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #10b981; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如：当地特色小吃街、历史文化街区等</div>
+                        </div>
+                        
+                        <div class="location-item" data-location="like-3">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #10b981;">3</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">想去的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input like-poi-input" id="like-location-3" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#10b981'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-like-3" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #10b981; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如：商圈、特色小镇或必去景区等</div>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn-add-location" id="addLikeLocation">
+                        + 添加更多想去的景点
+                    </button>
+                </div>
+                
+                <!-- 不喜欢的景点 -->
+                <div style="margin-top: 32px;">
+                    <div class="section-subtitle">🚫 不喜欢的景点</div>
+                    <div class="section-desc">请输入您不想去的景点类型或地点</div>
+                    
+                    <div class="location-list" id="dislikeLocationsList">
+                        <div class="location-item" data-location="dislike-1" style="border-color: #fee2e2;">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #ef4444;">1</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">不喜欢的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input dislike-poi-input" id="dislike-location-1" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#ef4444'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-dislike-1" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #ef4444; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如：游乐场、人多拥挤的景点、商业化严重的景区等</div>
+                        </div>
+                        
+                        <div class="location-item" data-location="dislike-2" style="border-color: #fee2e2;">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #ef4444;">2</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">不喜欢的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input dislike-poi-input" id="dislike-location-2" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#ef4444'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-dislike-2" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #ef4444; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如：动物园、水上项目、需要长时间排队的景点等</div>
+                        </div>
+                        
+                        <div class="location-item" data-location="dislike-3" style="border-color: #fee2e2;">
+                            <div class="location-header">
+                                <div class="location-number" style="background: #ef4444;">3</div>
+                                <div style="flex: 1;">
+                                    <div class="location-title">不喜欢的景点</div>
+                                    <div style="position: relative;">
+                                        <input type="text" class="location-input dislike-poi-input" id="dislike-location-3" placeholder="输入景点名称" autocomplete="off" 
+                                               style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                               onfocus="this.style.borderColor='#ef4444'"
+                                               onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                                        <!-- 景点提示下拉列表 -->
+                                        <div class="poi-suggestions" id="poi-suggestions-dislike-3" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #ef4444; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="location-desc">例如：需要门票、离市区较远、环境嘗杂的地方等</div>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn-add-location" id="addDislikeLocation">
+                        + 添加更多不喜欢的景点
+                    </button>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="form-actions">
+                    <button type="button" class="btn-lg btn-secondary" onclick="navigate('/index.html')">取消</button>
+                    <button type="submit" class="btn-lg btn-primary">提交并生成AI方案</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Right Section - Budget Summary -->
+        <div class="right-section">
+            <!-- Share Collaboration Link (hidden until project created) -->
+            <div class="budget-summary" id="shareLinkSection" style="margin-bottom: 20px; display: none;">
+                <div class="budget-header" style="margin-bottom: 16px;">
+                    <span style="font-size: 20px;">🔗</span>
+                    <span style="font-size: 16px; font-weight: 600;">分享协作链接</span>
+                </div>
+                <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;">邀请其他人一起填写旅行偏好</p>
+                
+                <div style="background: #f3f4f6; border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <input type="text" id="shareLink" readonly value="" style="flex: 1; background: transparent; border: none; font-size: 13px; color: #374151; outline: none;" />
+                </div>
+                
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" id="copyLinkBtn" class="btn-lg" style="flex: 1; padding: 10px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                        📋 复制链接
+                    </button>
+                    <button type="button" id="viewParticipantsBtn" class="btn-lg" style="flex: 1; padding: 10px; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                        👥 查看成员
+                    </button>
+                </div>
+                
+                <div id="participantCount" style="margin-top: 12px; font-size: 13px; color: #6b7280; text-align: center;">
+                    已邀请 <span id="invitedCount">0</span> 人
+                </div>
+            </div>
+            
+            <div class="budget-summary">
+                <div class="budget-header">
+                    <span style="font-size: 20px;">💡</span>
+                    <span style="font-size: 16px; font-weight: 600;">创建者设置的每日预算</span>
+                    <button type="button" id="addBudgetItemBtn" class="edit-link" style="display: none; margin-left: auto; padding: 4px 12px; background: #10b981; color: white; border-radius: 6px; border: none; cursor: pointer;">➕ 添加预算项</button>
+                </div>
+                <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">以下是基本项目组成部分项目量，建议仅供参考</p>
+                
+                <div id="budgetItemsList">
+                    <!-- 预算项将动态生成 -->
+                </div>
+                
+                <div class="budget-total">
+                    <div class="budget-total-label">每日总预算</div>
+                    <div class="budget-total-amount">
+                        <span style="font-size: 20px;">¥</span>
+                        <span id="dailyTotal">650</span>
+                        <span class="budget-total-unit">/天</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script>
+        // Check authentication
+        auth.checkAuth();
+        
+        const currentUser = auth.getUser();
+        const selectedInterests = [];
+        let likeLocationCount = 3;
+        let dislikeLocationCount = 3;
+        const likeLocations = {};
+        const dislikeLocations = {};
+        
+        // Initialize default locations
+        for (let i = 1; i <= 3; i++) {
+            likeLocations[`like-${i}`] = '';
+            dislikeLocations[`dislike-${i}`] = '';
+        }
+        
+        // Budget data - 使用数组存储，支持动态添加/删除
+        let budgetItems = [
+            { id: 'attraction', name: '景点门票', desc: '每日7张门票', icon: '🚇', color: '#dbeafe', amount: 150 },
+            { id: 'lunch', name: '午餐', desc: '每日午餐预算', icon: '🚗', color: '#fef3c7', amount: 80 },
+            { id: 'dinner', name: '晚餐', desc: '每日晚餐预算', icon: '🍽️', color: '#e5e7eb', amount: 120 },
+            { id: 'accommodation', name: '住宿', desc: '每日住宿预算', icon: '🏠', color: '#dbeafe', amount: 300 }
+        ];
+        
+        let budgetItemIdCounter = 5; // 用于生成新的预算项ID
+        
+        let isCreator = true; // 在创建页面，当前用户就是创建者
+        let currentProjectId = null; // 当前项目ID（用于分享链接）
+        
+        // 高德地图城市搜索功能
+        let autoComplete = null;
+        let searchTimeout = null;
+        
+        // 初始化高德地图自动完成
+        function initAmapAutoComplete() {
+            if (typeof AMap === 'undefined') {
+                console.error('高德地图API未加载');
+                return;
+            }
+            
+            autoComplete = new AMap.AutoComplete({
+                city: '全国', // 城市，默认全国
+                citylimit: false // 是否限制在设定城市内搜索
+            });
+            
+            console.log('高德地图自动完成初始化成功');
+        }
+        
+        // 城市搜索函数
+        function searchCity(keyword) {
+            if (!keyword || keyword.trim() === '') {
+                hideCitySuggestions();
+                return;
+            }
+            
+            if (!autoComplete) {
+                console.log('初始化AutoComplete...');
+                initAmapAutoComplete();
+            }
+            
+            if (!autoComplete) {
+                console.error('AutoComplete初始化失败');
+                return;
+            }
+            
+            console.log('搜索关键词:', keyword);
+            
+            // 使用防抖
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                autoComplete.search(keyword, function(status, result) {
+                    console.log('搜索状态:', status);
+                    console.log('搜索结果:', result);
+                    
+                    if (status === 'complete' && result.tips && result.tips.length > 0) {
+                        console.log('找到', result.tips.length, '个结果');
+                        showCitySuggestions(result.tips);
+                    } else if (status === 'error') {
+                        console.error('搜索错误:', result);
+                        hideCitySuggestions();
+                    } else if (status === 'no_data') {
+                        console.log('没有找到匹配的城市');
+                        hideCitySuggestions();
+                    } else {
+                        console.log('未知状态:', status);
+                        hideCitySuggestions();
+                    }
+                });
+            }, 300); // 300ms防抖
+        }
+        
+        // 显示城市提示
+        function showCitySuggestions(tips) {
+            const container = document.getElementById('citySuggestions');
+            console.log('显示提示，容器:', container);
+            
+            if (!container) {
+                console.error('找不到citySuggestions容器');
+                return;
+            }
+            
+            // 过滤出有效的结果
+            const validTips = tips.filter(tip => {
+                return tip.name && (tip.district || tip.adcode);
+            });
+            
+            console.log('过滤后的结果:', validTips.length, '个');
+            
+            if (validTips.length === 0) {
+                console.log('没有有效的结果');
+                hideCitySuggestions();
+                return;
+            }
+            
+            container.innerHTML = validTips.slice(0, 10).map(tip => {
+                const name = tip.name;
+                const district = tip.district || '';
+                const address = tip.address || '';
+                const location = district || address || '中国';
+                
+                // 提取城市名：优先从district提取
+                let cityName = extractCityName(name, district);
+                
+                return `
+                    <div class="city-suggestion-item" 
+                         style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f3f4f6; transition: background 0.2s;"
+                         onmouseover="this.style.background='#f3f4f6'"
+                         onmouseout="this.style.background='white'"
+                         onclick="selectCity('${cityName.replace(/'/g, "\\'")}')">
+                        <div style="font-weight: 600; color: #374151; margin-bottom: 4px;">
+                            📍 ${name}
+                        </div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            ${location} → 将选择: <span style="color: #3b82f6; font-weight: 600;">${cityName}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.style.display = 'block';
+            console.log('提示列表已显示');
+        }
+        
+        // 从名称和区县信息中提取城市名
+        function extractCityName(name, district) {
+            // 特殊城市列表（直辖市、特别行政区）
+            const specialCities = ['北京', '上海', '天津', '重庆', '香港', '澳门'];
+            
+            // 检查是否是直辖市
+            for (const city of specialCities) {
+                if (name.includes(city) || district.includes(city)) {
+                    return city + '市';
+                }
+            }
+            
+            // 如果name本身就是"XX市"格式，直接返回
+            if (name.endsWith('市') && !name.includes('区') && !name.includes('县')) {
+                return name;
+            }
+            
+            // 从district中提取城市名（格式通常是"XX省XX市XX区"）
+            if (district) {
+                // 尝试匹配"XX市"的模式
+                const cityMatch = district.match(/([\u4e00-\u9fa5]+市)/g);
+                if (cityMatch && cityMatch.length > 0) {
+                    return cityMatch[0];
+                }
+                
+                // 如果没有匹配到市，尝试提取省份后的内容
+                const afterProvince = district.replace(/^[\u4e00-\u9fa5]+省/, '');
+                if (afterProvince && afterProvince !== district) {
+                    const cityInAfter = afterProvince.match(/^([\u4e00-\u9fa5]+?)(?:市|区|县|$)/);
+                    if (cityInAfter) {
+                        return cityInAfter[1] + '市';
+                    }
+                }
+            }
+            
+            // 从name中提取
+            if (name.includes('市')) {
+                const cityMatch = name.match(/([\u4e00-\u9fa5]+市)/);
+                if (cityMatch) {
+                    return cityMatch[1];
+                }
+            }
+            
+            // 兜底：返回name本身（去掉可能的区县后缀）
+            return name.replace(/区$|县$/, '') + (name.endsWith('市') ? '' : '市');
+        }
+        
+        // 隐藏城市提示
+        function hideCitySuggestions() {
+            const container = document.getElementById('citySuggestions');
+            container.style.display = 'none';
+        }
+        
+        // 选择城市
+        function selectCity(cityName) {
+            const input = document.getElementById('destinationInput');
+            input.value = cityName;
+            // 标记为已选择，文字变蓝
+            input.style.color = '#3b82f6';
+            input.style.fontWeight = '600';
+            input.setAttribute('data-selected', 'true');
+            hideCitySuggestions();
+            
+            // 检查表单验证状态
+            checkFormValidity();
+        }
+        
+        // ====== POI(景点)搜索功能 ======
+        let placeSearch = null;
+        let poiSearchTimeout = null;
+        
+        // 从完整地址中提取城市名用于POI搜索
+        function extractCityForSearch(fullLocation) {
+            if (!fullLocation) return '全国';
+            
+            console.log('[extractCityForSearch] 输入:', fullLocation);
+            
+            // 特殊城市（直辖市）
+            const specialCities = ['北京', '上海', '天津', '重庆'];
+            for (const city of specialCities) {
+                if (fullLocation.includes(city)) {
+                    console.log('[extractCityForSearch] 匹配直辖市:', city);
+                    return city;
+                }
+            }
+            
+            // 先去掉省份前缀，然后提取城市
+            let cleanLocation = fullLocation.replace(/^[\u4e00-\u9fa5]+省/, '');
+            console.log('[extractCityForSearch] 去掉省份后:', cleanLocation);
+            
+            // 匹配城市名（如"东莞市"、"广州市"）
+            const cityMatch = cleanLocation.match(/^([\u4e00-\u9fa5]+市)/);
+            if (cityMatch) {
+                // 返回纯城市名（不带"市"后缀，高德API更容易识别）
+                const cityName = cityMatch[1].replace(/市$/, '');
+                console.log('[extractCityForSearch] 提取城市:', cityName);
+                return cityName;
+            }
+            
+            // 如果没有匹配到，返回去掉省后的内容
+            const result = cleanLocation.replace(/市$/, '') || fullLocation;
+            console.log('[extractCityForSearch] 最终结果:', result);
+            return result;
+        }
+        
+        // 初始化POI搜索
+        function initPoiSearch() {
+            if (typeof AMap === 'undefined') {
+                console.error('高德地图API未加载');
+                return;
+            }
+            
+            // 获取目的地城市
+            const destinationInput = document.getElementById('destinationInput');
+            const fullLocation = destinationInput ? destinationInput.value.trim() : '';
+            // 从完整地址中提取城市名
+            const city = extractCityForSearch(fullLocation);
+            
+            // 使用PlaceSearch搜索POI
+            placeSearch = new AMap.PlaceSearch({
+                city: city,
+                citylimit: false, // 不限制在城市内搜索，但优先显示该城市结果
+                pageSize: 20,
+                type: '' // 搜索所有类型POI
+            });
+            
+            console.log('POI搜索初始化成功，城市:', city);
+        }
+        
+        // POI搜索函数
+        function searchPoi(keyword, inputId, suggestionsId) {
+            if (!keyword || keyword.trim() === '') {
+                hidePoiSuggestions(suggestionsId);
+                return;
+            }
+            
+            // 获取目的地城市
+            const destinationInput = document.getElementById('destinationInput');
+            const fullLocation = destinationInput ? destinationInput.value.trim() : '';
+            
+            if (!fullLocation) {
+                console.log('请先选择目的地');
+                hidePoiSuggestions(suggestionsId);
+                return;
+            }
+            
+            // 从完整地址中提取城市名
+            const city = extractCityForSearch(fullLocation);
+            
+            if (!placeSearch) {
+                initPoiSearch();
+            }
+            
+            // 更新搜索城市
+            placeSearch.setCity(city);
+            
+            console.log('搜索POI:', keyword, '在城市:', city);
+            
+            // 使用防抖
+            clearTimeout(poiSearchTimeout);
+            poiSearchTimeout = setTimeout(() => {
+                console.log('[POI搜索] 开始搜索:', keyword, '城市设置:', city);
+                
+                // 重新初始化placeSearch以确保城市设置生效
+                placeSearch = new AMap.PlaceSearch({
+                    city: city,
+                    citylimit: true, // 限制在该城市搜索
+                    pageSize: 20,
+                    type: '' // 搜索所有类型POI
+                });
+                
+                placeSearch.search(keyword, function(status, result) {
+                    console.log('[POI搜索] 状态:', status);
+                    console.log('[POI搜索] 结果:', result);
+                    
+                    if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+                        showPoiSuggestions(result.poiList.pois, suggestionsId, inputId);
+                    } else if (status === 'no_data') {
+                        console.log('没有找到匹配的景点');
+                        hidePoiSuggestions(suggestionsId);
+                    } else {
+                        hidePoiSuggestions(suggestionsId);
+                    }
+                });
+            }, 300);
+        }
+        
+        // 显示POI提示
+        function showPoiSuggestions(pois, suggestionsId, inputId) {
+            const container = document.getElementById(suggestionsId);
+            
+            if (!container) {
+                console.error('找不到提示容器:', suggestionsId);
+                return;
+            }
+            
+            console.log('显示POI提示，数量:', pois.length);
+            
+            if (pois.length === 0) {
+                hidePoiSuggestions(suggestionsId);
+                return;
+            }
+            
+            container.innerHTML = pois.slice(0, 8).map(poi => {
+                const name = poi.name || '';
+                const address = poi.address || '';
+                const district = poi.adname || poi.cityname || '';
+                const typeName = poi.type ? poi.type.split(';')[0] : '';
+                const location = address || district || '';
+                // 转义特殊字符防止onclick错误
+                const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                
+                return `
+                    <div class="poi-suggestion-item" 
+                         style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; transition: background 0.2s;"
+                         onmouseover="this.style.background='#f3f4f6'"
+                         onmouseout="this.style.background='white'"
+                         onclick="selectPoi('${safeName}', '${inputId}')">
+                        <div style="font-weight: 600; color: #374151; font-size: 13px; margin-bottom: 2px;">
+                            🏛️ ${name}
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280;">
+                            ${location}${typeName ? ' · ' + typeName : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.style.display = 'block';
+            console.log('POI提示列表已显示');
+        }
+        
+        // 隐藏POI提示
+        function hidePoiSuggestions(suggestionsId) {
+            const container = document.getElementById(suggestionsId);
+            if (container) {
+                container.style.display = 'none';
+            }
+        }
+        
+        // 选择POI
+        function selectPoi(poiName, inputId) {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = poiName;
+                // 标记为已选择，文字变蓝
+                input.style.color = '#3b82f6';
+                input.style.fontWeight = '600';
+                input.setAttribute('data-selected', 'true');
+            }
+            // 隐藏所有提示
+            document.querySelectorAll('.poi-suggestions').forEach(el => el.style.display = 'none');
+            
+            // 检查表单验证状态
+            checkFormValidity();
+        }
+        
+        // 检查表单必填项是否完成
+        function checkFormValidity() {
+            // 必填项：目的地、开始时间、结束时间
+            const destinationInput = document.getElementById('destinationInput');
+            const startDateInput = document.getElementById('startDateInput');
+            const endDateInput = document.getElementById('endDateInput');
+            
+            // 检查所有必填项是否完成
+            const destinationFilled = destinationInput && destinationInput.getAttribute('data-selected') === 'true';
+            const startDateFilled = startDateInput && startDateInput.value.trim() !== '';
+            const endDateFilled = endDateInput && endDateInput.value.trim() !== '';
+            
+            const allFilled = destinationFilled && startDateFilled && endDateFilled;
+            
+            // 获取提交按钮
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                if (allFilled) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.cursor = 'pointer';
+                } else {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.5';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
+            }
+            
+            return allFilled;
+        }
+        
+        // 监听目的地输入框
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== 页面加载完成 ===');
+            console.log('AMap是否存在:', typeof AMap !== 'undefined');
+            console.log('安全配置:', window._AMapSecurityConfig);
+            
+            const destinationInput = document.getElementById('destinationInput');
+            const suggestionsContainer = document.getElementById('citySuggestions');
+            
+            console.log('目的地输入框:', destinationInput);
+            console.log('提示容器:', suggestionsContainer);
+            
+            if (destinationInput) {
+                destinationInput.addEventListener('input', function(e) {
+                    console.log('输入事件触发:', e.target.value);
+                    
+                    // 如果用户手动修改了内容，清除选中标记
+                    if (e.target.getAttribute('data-selected') === 'true') {
+                        e.target.removeAttribute('data-selected');
+                        e.target.style.color = '';
+                        e.target.style.fontWeight = '';
+                        checkFormValidity();
+                    }
+                    
+                    searchCity(e.target.value);
+                });
+                
+                // 点击页面其他地方关闭提示
+                document.addEventListener('click', function(e) {
+                    if (!destinationInput.contains(e.target) && 
+                        suggestionsContainer && !suggestionsContainer.contains(e.target)) {
+                        hideCitySuggestions();
+                    }
+                });
+            } else {
+                console.error('找不到destinationInput元素');
+            }
+            
+            // 初始化高德地图
+            console.log('开始初始化高德地图...');
+            initAmapAutoComplete();
+            
+            // 初始化POI搜索
+            initPoiSearch();
+            
+            // 为所有“想去的景点”输入框添加事件监听
+            document.querySelectorAll('.like-poi-input').forEach((input, index) => {
+                const inputId = input.id;
+                const suggestionsId = `poi-suggestions-like-${index + 1}`;
+                
+                console.log('绑定想去的景点输入框:', inputId);
+                
+                input.addEventListener('input', function(e) {
+                    console.log('想去的景点输入:', e.target.value);
+                    
+                    // 如果用户手动修改了内容，清除选中标记
+                    if (e.target.getAttribute('data-selected') === 'true') {
+                        e.target.removeAttribute('data-selected');
+                        e.target.style.color = '';
+                        e.target.style.fontWeight = '';
+                        checkFormValidity();
+                    }
+                    
+                    searchPoi(e.target.value, inputId, suggestionsId);
+                });
+            });
+            
+            // 为所有“不喜欢的景点”输入框添加事件监听
+            document.querySelectorAll('.dislike-poi-input').forEach((input, index) => {
+                const inputId = input.id;
+                const suggestionsId = `poi-suggestions-dislike-${index + 1}`;
+                
+                console.log('绑定不喜欢的景点输入框:', inputId);
+                
+                input.addEventListener('input', function(e) {
+                    console.log('不喜欢的景点输入:', e.target.value);
+                    searchPoi(e.target.value, inputId, suggestionsId);
+                });
+            });
+            
+            // 点击页面其他地方关闭所有POI提示
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.location-input') && !e.target.closest('.poi-suggestions')) {
+                    document.querySelectorAll('.poi-suggestions').forEach(el => el.style.display = 'none');
+                }
+            });
+            
+            // 为日期输入框添加change事件监听
+            const startDateInput = document.getElementById('startDateInput');
+            const endDateInput = document.getElementById('endDateInput');
+            
+            if (startDateInput) {
+                startDateInput.addEventListener('change', function() {
+                    checkFormValidity();
+                });
+            }
+            
+            if (endDateInput) {
+                endDateInput.addEventListener('change', function() {
+                    checkFormValidity();
+                });
+            }
+            
+            // 初始化表单验证状态（禁用提交按钮）
+            checkFormValidity();
+        });
+        
+        // Check if this is a shared link access
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedProjectId = urlParams.get('projectId');
+        const inviteToken = urlParams.get('token');
+        
+        if (sharedProjectId && inviteToken) {
+            // This is a shared link access
+            isCreator = false;
+            currentProjectId = sharedProjectId;
+            // Load project data for non-creators
+            loadSharedProjectData(sharedProjectId, inviteToken);
+        }
+        
+        // Load shared project data
+        async function loadSharedProjectData(projectId, token) {
+            try {
+                // 检查用户是否已经提交过需求
+                const checkResponse = await fetch(`/api/requirement-parameters/project/${projectId}/all`);
+                if (checkResponse.ok) {
+                    const allRequirements = await checkResponse.json();
+                    const userRequirement = allRequirements.find(r => r.userId === currentUser.id);
+                    
+                    if (userRequirement) {
+                        // 用户已经提交过
+                        alert('您已经填写过需求，请等待创建者开始协作');
+                        setTimeout(() => {
+                            navigate('/index.html');
+                        }, 1500);
+                        return;
+                    }
+                }
+                
+                // 检查用户是否已经在参与者列表中
+                const participantsResponse = await fetch(`/api/project-participants/project/${projectId}`);
+                let isAlreadyParticipant = false;
+                if (participantsResponse.ok) {
+                    const participants = await participantsResponse.json();
+                    isAlreadyParticipant = participants.some(p => p.userId === currentUser.id);
+                }
+                
+                // 如果不是参与者，自动添加到参与者列表（状态：填写中）
+                if (!isAlreadyParticipant) {
+                    const now = new Date().toISOString();
+                    try {
+                        await fetch('/api/project-participants', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                projectId: parseInt(projectId),
+                                userId: currentUser.id,
+                                role: '参与者',
+                                joinTime: now
+                            })
+                        });
+                        console.log('已添加到参与者列表');
+                    } catch (err) {
+                        console.error('Error adding participant:', err);
+                    }
+                }
+                
+                const response = await fetch(`/api/travel-projects/${projectId}`);
+                if (response.ok) {
+                    const project = await response.json();
+                    document.querySelector('.section-title').textContent = `参与项目：${project.projectName}`;
+                    document.getElementById('projectName').value = project.projectName;
+                    document.getElementById('destination').value = project.destination;
+                    document.getElementById('days').value = project.days;
+                    
+                    // 填充旅行基本信息字段
+                    if (project.destination) {
+                        document.getElementById('destinationInput').value = project.destination;
+                    }
+                    if (project.startDate) {
+                        document.getElementById('startDateInput').value = project.startDate;
+                    }
+                    if (project.endDate) {
+                        document.getElementById('endDateInput').value = project.endDate;
+                    }
+                    
+                    // 尝试加载用户的草稿（如果存在）
+                    await loadDraftData(projectId);
+                    
+                    // Update button text
+                    document.querySelector('button[type="submit"]').textContent = '提交我的偏好';
+                }
+            } catch (error) {
+                console.error('Error loading shared project:', error);
+            }
+        }
+        
+        // 渲染预算项列表
+        function renderBudgetItems() {
+            const container = document.getElementById('budgetItemsList');
+            container.innerHTML = budgetItems.map(item => `
+                <div class="budget-item" data-budget-id="${item.id}">
+                    <div style="display: flex; align-items: center; flex: 1;">
+                        <div class="budget-item-icon" style="background: ${item.color};">
+                            ${item.icon}
+                        </div>
+                        <div class="budget-item-info">
+                            <div class="budget-item-name">${item.name}</div>
+                            <div class="budget-item-desc">${item.desc}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="budget-item-price blue ${isCreator ? 'editable' : ''}" data-amount="${item.amount}">
+                            <span style="font-size: 14px;">￥</span>
+                            <span class="amount-value">${item.amount}</span>
+                            <span style="font-size: 14px; color: #6b7280;">/天</span>
+                        </div>
+                        ${isCreator ? `<button type="button" class="delete-budget-btn" data-budget-id="${item.id}" style="background: #ef4444; color: white; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px;">✖</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            // 为编辑按钮添加事件
+            if (isCreator) {
+                document.querySelectorAll('.budget-item-price.editable').forEach(priceEl => {
+                    priceEl.addEventListener('click', function() {
+                        const budgetId = this.closest('.budget-item').getAttribute('data-budget-id');
+                        const item = budgetItems.find(b => b.id === budgetId);
+                        if (!item) return;
+                        
+                        const newAmount = prompt(`请输入${item.name}的每日预算（元）：`, item.amount);
+                        if (newAmount !== null && !isNaN(newAmount) && parseFloat(newAmount) >= 0) {
+                            item.amount = parseFloat(newAmount);
+                            renderBudgetItems();
+                            updateTotalBudget();
+                            saveDraft();
+                        }
+                    });
+                });
+                
+                // 为删除按钮添加事件
+                document.querySelectorAll('.delete-budget-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const budgetId = this.getAttribute('data-budget-id');
+                        const item = budgetItems.find(b => b.id === budgetId);
+                        if (!item) return;
+                        
+                        if (confirm(`确定要删除「${item.name}」预算项吗？`)) {
+                            budgetItems = budgetItems.filter(b => b.id !== budgetId);
+                            renderBudgetItems();
+                            updateTotalBudget();
+                            saveDraft();
+                        }
+                    });
+                });
+            }
+        }
+        
+        // 添加新的预算项
+        function addNewBudgetItem() {
+            const name = prompt('请输入预算项名称（例如：交通、购物、娱乐）：');
+            if (!name || name.trim() === '') return;
+            
+            const desc = prompt('请输入描述（可选）：') || '每日预算';
+            const amount = prompt('请输入每日预算金额（元）：', '100');
+            
+            if (amount === null || isNaN(amount) || parseFloat(amount) < 0) {
+                alert('请输入有效的金额');
+                return;
+            }
+            
+            // 选择图标
+            const icons = ['🚌', '🚎', '🚕', '🎉', '🎮', '🎥', '📷', '🛍️', '☕', '🎫'];
+            const colors = ['#dbeafe', '#fef3c7', '#e5e7eb', '#fce7f3', '#ddd6fe', '#d1fae5'];
+            
+            const newItem = {
+                id: `custom_${budgetItemIdCounter++}`,
+                name: name.trim(),
+                desc: desc.trim(),
+                icon: icons[Math.floor(Math.random() * icons.length)],
+                color: colors[Math.floor(Math.random() * colors.length)],
+                amount: parseFloat(amount)
+            };
+            
+            budgetItems.push(newItem);
+            renderBudgetItems();
+            updateTotalBudget();
+            saveDraft();
+        }
+        
+        // 更新总预算
+        function updateTotalBudget() {
+            const total = budgetItems.reduce((sum, item) => sum + item.amount, 0);
+            document.getElementById('dailyTotal').textContent = total;
+        }
+        function setupTripInfoPermissions() {
+            const destinationInput = document.getElementById('destinationInput');
+            const startDateInput = document.getElementById('startDateInput');
+            const endDateInput = document.getElementById('endDateInput');
+            
+            if (!isCreator) {
+                // 非创建者：禁用这些字段
+                destinationInput.disabled = true;
+                startDateInput.disabled = true;
+                endDateInput.disabled = true;
+                
+                // 添加禁用样式
+                destinationInput.style.backgroundColor = '#f9fafb';
+                destinationInput.style.cursor = 'not-allowed';
+                startDateInput.style.backgroundColor = '#f9fafb';
+                startDateInput.style.cursor = 'not-allowed';
+                endDateInput.style.backgroundColor = '#f9fafb';
+                endDateInput.style.cursor = 'not-allowed';
+            }
+        }
+        
+        // 保存草稿到 localStorage
+        function saveDraft() {
+            if (isCreator || !currentProjectId) return;
+            
+            const draftKey = `draft_${currentProjectId}_${currentUser.id}`;
+            const draftData = {
+                selectedInterests: selectedInterests,
+                likeLocations: likeLocations,
+                dislikeLocations: dislikeLocations,
+                budgetData: budgetItems,
+                timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem(draftKey, JSON.stringify(draftData));
+            console.log('草稿已保存');
+        }
+        
+        // 加载草稿
+        async function loadDraftData(projectId) {
+            const draftKey = `draft_${projectId}_${currentUser.id}`;
+            const draftJson = localStorage.getItem(draftKey);
+            
+            if (!draftJson) return;
+            
+            try {
+                const draft = JSON.parse(draftJson);
+                
+                // 恢复兴趣选择
+                if (draft.selectedInterests && Array.isArray(draft.selectedInterests)) {
+                    draft.selectedInterests.forEach(interest => {
+                        selectedInterests.push(interest);
+                        const item = document.querySelector(`[data-interest="${interest}"]`);
+                        if (item) item.classList.add('selected');
+                    });
+                    updateInterestCount();
+                }
+                
+                // 恢复喜欢的景点
+                if (draft.likeLocations) {
+                    Object.assign(likeLocations, draft.likeLocations);
+                    Object.keys(draft.likeLocations).forEach(key => {
+                        const item = document.querySelector(`[data-location="${key}"]`);
+                        if (item && draft.likeLocations[key]) {
+                            const titleEl = item.querySelector('.location-title');
+                            if (titleEl) titleEl.textContent = draft.likeLocations[key];
+                        }
+                    });
+                }
+                
+                // 恢复不喜欢的景点
+                if (draft.dislikeLocations) {
+                    Object.assign(dislikeLocations, draft.dislikeLocations);
+                    Object.keys(draft.dislikeLocations).forEach(key => {
+                        const item = document.querySelector(`[data-location="${key}"]`);
+                        if (item && draft.dislikeLocations[key]) {
+                            const titleEl = item.querySelector('.location-title');
+                            if (titleEl) titleEl.textContent = draft.dislikeLocations[key];
+                        }
+                    });
+                }
+                
+                // 恢复预算
+                if (draft.budgetData) {
+                    budgetItems = draft.budgetData;
+                    renderBudgetItems();
+                    updateTotalBudget();
+                }
+                
+                console.log('草稿已加载');
+            } catch (error) {
+                console.error('Error loading draft:', error);
+            }
+        }
+        
+        // 清除草稿
+        function clearDraft() {
+            if (!currentProjectId) return;
+            const draftKey = `draft_${currentProjectId}_${currentUser.id}`;
+            localStorage.removeItem(draftKey);
+            console.log('草稿已清除');
+        }
+        
+        // Enable budget editing for creator
+        // Enable budget editing for creator
+        function enableBudgetEditing() {
+            if (!isCreator) return;
+            
+            // 显示添加按钮
+            document.getElementById('addBudgetItemBtn').style.display = 'block';
+            
+            // 渲染预算项
+            renderBudgetItems();
+            updateTotalBudget();
+        }
+        
+        // 为添加预算项按钮添加事件监听
+        document.addEventListener('DOMContentLoaded', function() {
+            const addBtn = document.getElementById('addBudgetItemBtn');
+            if (addBtn) {
+                addBtn.addEventListener('click', addNewBudgetItem);
+            }
+        });
+        
+        // Handle interest icon selection
+        document.querySelectorAll('.icon-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const interest = this.getAttribute('data-interest');
+                
+                if (this.classList.contains('selected')) {
+                    this.classList.remove('selected');
+                    const index = selectedInterests.indexOf(interest);
+                    if (index > -1) {
+                        selectedInterests.splice(index, 1);
+                    }
+                } else {
+                    if (selectedInterests.length < 5) {
+                        this.classList.add('selected');
+                        selectedInterests.push(interest);
+                    } else {
+                        alert('最多只能选择5个兴趣标签');
+                        return;
+                    }
+                }
+                
+                // Update counter
+                document.querySelector('.interest-card-header .edit-link').textContent = `已选择 ${selectedInterests.length}/5`;
+                
+                // 自动保存草稿
+                saveDraft();
+            });
+        });
+        
+        // Handle location item clicks - REMOVED, now using input fields
+        // Location items no longer use prompt(), they have input fields inside
+        
+        // Initialize existing location items - NO LONGER NEEDED
+        // document.querySelectorAll('.location-item').forEach(item => {
+        //     attachLocationClickHandler(item);
+        // });
+        
+        // Add new like location
+        document.getElementById('addLikeLocation').addEventListener('click', function() {
+            likeLocationCount++;
+            const locationId = `like-${likeLocationCount}`;
+            const inputId = `like-location-${likeLocationCount}`;
+            const suggestionsId = `poi-suggestions-like-${likeLocationCount}`;
+            likeLocations[locationId] = '';
+            
+            const locationItem = document.createElement('div');
+            locationItem.className = 'location-item';
+            locationItem.setAttribute('data-location', locationId);
+            locationItem.innerHTML = `
+                <div class="location-header">
+                    <div class="location-number" style="background: #10b981;">${likeLocationCount}</div>
+                    <div style="flex: 1;">
+                        <div class="location-title">想去的景点</div>
+                        <div style="position: relative;">
+                            <input type="text" class="location-input like-poi-input" id="${inputId}" placeholder="输入景点名称" autocomplete="off" 
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                   onfocus="this.style.borderColor='#10b981'"
+                                   onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                            <div class="poi-suggestions" id="${suggestionsId}" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #10b981; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="location-desc">请输入您想去的景点名称</div>
+            `;
+            
+            document.getElementById('likeLocationsList').appendChild(locationItem);
+            
+            // 为新添加的输入框绑定事件
+            const newInput = document.getElementById(inputId);
+            newInput.addEventListener('input', function(e) {
+                // 如果用户手动修改了内容，清除选中标记
+                if (e.target.getAttribute('data-selected') === 'true') {
+                    e.target.removeAttribute('data-selected');
+                    e.target.style.color = '';
+                    e.target.style.fontWeight = '';
+                    checkFormValidity();
+                }
+                
+                searchPoi(e.target.value, inputId, suggestionsId);
+            });
+        });
+        
+        // Add new dislike location
+        document.getElementById('addDislikeLocation').addEventListener('click', function() {
+            dislikeLocationCount++;
+            const locationId = `dislike-${dislikeLocationCount}`;
+            const inputId = `dislike-location-${dislikeLocationCount}`;
+            const suggestionsId = `poi-suggestions-dislike-${dislikeLocationCount}`;
+            dislikeLocations[locationId] = '';
+            
+            const locationItem = document.createElement('div');
+            locationItem.className = 'location-item';
+            locationItem.setAttribute('data-location', locationId);
+            locationItem.style.borderColor = '#fee2e2';
+            locationItem.innerHTML = `
+                <div class="location-header">
+                    <div class="location-number" style="background: #ef4444;">${dislikeLocationCount}</div>
+                    <div style="flex: 1;">
+                        <div class="location-title">不喜欢的景点</div>
+                        <div style="position: relative;">
+                            <input type="text" class="location-input dislike-poi-input" id="${inputId}" placeholder="输入景点名称" autocomplete="off" 
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; margin-top: 4px;"
+                                   onfocus="this.style.borderColor='#ef4444'"
+                                   onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; }, 200)" />
+                            <div class="poi-suggestions" id="${suggestionsId}" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #ef4444; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="location-desc">请输入您不喜欢的景点名称</div>
+            `;
+            
+            document.getElementById('dislikeLocationsList').appendChild(locationItem);
+            
+            // 为新添加的输入框绑定事件
+            const newInput = document.getElementById(inputId);
+            newInput.addEventListener('input', function(e) {
+                // 如果用户手动修改了内容，清除选中标记
+                if (e.target.getAttribute('data-selected') === 'true') {
+                    e.target.removeAttribute('data-selected');
+                    e.target.style.color = '';
+                    e.target.style.fontWeight = '';
+                    checkFormValidity();
+                }
+                
+                searchPoi(e.target.value, inputId, suggestionsId);
+            });
+        });
+        
+        // Form submission
+        document.getElementById('createProjectForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Validate interests
+            if (selectedInterests.length < 2) {
+                alert('请至少选择2个兴趣标签');
+                return;
+            }
+            
+            // Get location wishlist and dislike list from input fields
+            const likeInputs = document.querySelectorAll('.like-poi-input');
+            const dislikeInputs = document.querySelectorAll('.dislike-poi-input');
+            
+            const wishlist = Array.from(likeInputs)
+                .map(input => input.value.trim())
+                .filter(val => val !== '')
+                .join(', ');
+            
+            const dislikeList = Array.from(dislikeInputs)
+                .map(input => input.value.trim())
+                .filter(val => val !== '')
+                .join(', ');
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const loading = showLoading(submitBtn);
+            
+            try {
+                if (isCreator) {
+                    // Creator: Create new project
+                    await handleCreatorSubmit(wishlist, dislikeList, loading);
+                } else {
+                    // Non-creator: Submit preferences for existing project
+                    await handleParticipantSubmit(wishlist, dislikeList, loading);
+                }
+            } catch (error) {
+                console.error('错误:', error);
+                showError('提交失败，请稍后重试');
+                loading.hide();
+            }
+        });
+        
+        // Handle creator submission
+        async function handleCreatorSubmit(wishlist, dislikeList, loading) {
+            // 从新的输入框获取值
+            let projectName = document.getElementById('projectName').value;
+            let destination = document.getElementById('destinationInput').value.trim();
+            const startDate = document.getElementById('startDateInput').value;
+            const endDate = document.getElementById('endDateInput').value;
+            
+            // 验证必填字段
+            if (!projectName) {
+                projectName = prompt('请输入行程名称：', `${selectedInterests[0]}之旅`);
+                if (!projectName) {
+                    alert('请输入行程名称');
+                    loading.hide();
+                    return;
+                }
+            }
+            
+            if (!destination) {
+                alert('请输入目的地');
+                loading.hide();
+                return;
+            }
+            
+            if (!startDate || !endDate) {
+                alert('请选择开始时间和结束时间');
+                loading.hide();
+                return;
+            }
+            
+            // 验证日期逻辑
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            if (end < start) {
+                alert('结束时间不能早于开始时间');
+                loading.hide();
+                return;
+            }
+            
+            // 计算天数
+            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Create travel project
+            const now = new Date().toISOString();
+            const projectResult = await post('/travel-projects', {
+                projectName,
+                destination,
+                days,
+                creatorId: currentUser.id,
+                status: '草稿',
+                createdTime: now,
+                updatedTime: now,
+                startDate: startDate,  // 添加开始日期
+                endDate: endDate       // 添加结束日期
+            });
+            
+            if (!projectResult.success) {
+                throw new Error('创建项目失败');
+            }
+            
+            const projectId = projectResult.data.id;
+            currentProjectId = projectId;
+            
+            // Generate and display share link
+            generateShareLink(projectId);
+            
+            // Calculate total budget using custom values
+            const dailyBudget = budgetItems.reduce((sum, item) => sum + item.amount, 0);
+            const totalBudget = dailyBudget * days;
+            
+            await post('/budgets', {
+                projectId,
+                totalBudget,
+                usedBudget: 0,
+                remainingBudget: totalBudget
+            });
+            
+            // Save requirement parameters with budget breakdown
+            await post('/requirement-parameters', {
+                projectId,
+                userId: currentUser.id,
+                interestTags: selectedInterests.join(','),
+                wishlist,
+                dailyBudgetAllocation: dailyBudget,
+                dislikeList: dislikeList,
+                budgetBreakdown: JSON.stringify(budgetItems)
+            });
+            
+            // Create participant record
+            await post('/travel-participants', {
+                projectId,
+                userId: currentUser.id,
+                permission: '创建者'
+            });
+            
+            // Add project participant
+            await post('/project-participants', {
+                projectId,
+                userId: currentUser.id,
+                role: '创建者',
+                joinTime: now
+            });
+            
+            // Generate AI route
+            await post('/ai-generated-routes', {
+                projectId,
+                routeContent: JSON.stringify({
+                    title: `${destination}${days}日游推荐路线`,
+                    description: '根据您的需求为您生成的旅行路线',
+                    highlights: selectedInterests,
+                    wishlist: wishlist,
+                    dislikeList: dislikeList,
+                    dailyBudget: budgetItems
+                }),
+                generatedTime: now,
+                interestTags: selectedInterests.join(',')
+            });
+            
+            loading.hide();
+            showSuccess('创建成功！正在跳转...');
+            
+            // 创建者直接跳转到查看成员页面
+            setTimeout(() => {
+                navigate(`/participants-status.html?id=${projectId}`);
+            }, 1500);
+        }
+        
+        // Handle participant submission
+        async function handleParticipantSubmit(wishlist, dislikeList, loading) {
+            const now = new Date().toISOString();
+            
+            // Calculate daily budget
+            const dailyBudget = budgetItems.reduce((sum, item) => sum + item.amount, 0);
+            
+            // Save participant's requirement parameters
+            await post('/requirement-parameters', {
+                projectId: currentProjectId,
+                userId: currentUser.id,
+                interestTags: selectedInterests.join(','),
+                wishlist,
+                dailyBudgetAllocation: dailyBudget,
+                dislikeList: dislikeList,
+                budgetBreakdown: JSON.stringify(budgetItems)
+            });
+            
+            // 用户在进入页面时已经被添加到 project-participants，不需要重复添加
+            // 只需要添加到 travel-participants
+            
+            // Add as travel participant
+            await post('/travel-participants', {
+                projectId: currentProjectId,
+                userId: currentUser.id,
+                permission: '成员'
+            });
+            
+            loading.hide();
+            showSuccess('提交成功！等待创建者开启协作...');
+            
+            // 清除草稿
+            clearDraft();
+            
+            // Redirect to home page
+            setTimeout(() => {
+                navigate('/index.html');
+            }, 2000);
+        }
+        
+        // Generate share link
+        function generateShareLink(projectId) {
+            const token = Math.random().toString(36).substring(2, 15);
+            const shareUrl = `${window.location.origin}/create-project.html?projectId=${projectId}&token=${token}`;
+            document.getElementById('shareLink').value = shareUrl;
+            
+            // Show the share link section
+            document.getElementById('shareLinkSection').style.display = 'block';
+        }
+        
+        // Copy share link
+        document.getElementById('copyLinkBtn').addEventListener('click', function() {
+            const shareLinkInput = document.getElementById('shareLink');
+            shareLinkInput.select();
+            document.execCommand('copy');
+            
+            // Visual feedback
+            this.textContent = '✅ 已复制';
+            setTimeout(() => {
+                this.textContent = '📋 复制链接';
+            }, 2000);
+        });
+        
+        // View participants
+        document.getElementById('viewParticipantsBtn').addEventListener('click', function() {
+            if (currentProjectId) {
+                navigate(`/participants-status.html?id=${currentProjectId}`);
+            }
+        });
+        
+        // Initialize budget editing
+        enableBudgetEditing();
+        
+        // 初始化旅行信息字段权限
+        setupTripInfoPermissions();
+    </script>
+</body>
+</html>

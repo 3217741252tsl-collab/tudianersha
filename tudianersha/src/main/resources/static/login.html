@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录/注册 - 途点儿啥旅行规划</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E88E5',
+            secondary: '#64B5F6',
+            accent: '#0D47A1',
+            light: '#E3F2FD',
+          },
+        },
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .form-shadow {
+        box-shadow: 0 10px 30px rgba(30, 136, 229, 0.1);
+      }
+      .input-focus {
+        @apply focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none;
+      }
+      .btn-effect {
+        @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-light to-white min-h-screen font-sans">
+  <header class="py-6 px-4">
+    <div class="container mx-auto flex justify-center">
+      <div class="flex items-center space-x-2">
+        <div style="background: #3b82f6; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold" style="color: #3b82f6; line-height: 1.2;">途点儿啥</h1>
+          <p class="text-xs" style="color: #6b7280;">让旅途不糊涂</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8 max-w-3xl">
+    <div class="bg-white rounded-t-xl form-shadow overflow-hidden">
+      <div class="flex" id="tabs">
+        <button id="loginTab" class="flex-1 py-4 text-center font-medium text-primary border-b-2 border-primary">
+          登录
+        </button>
+        <button id="registerTab" class="flex-1 py-4 text-center font-medium text-gray-500 hover:text-gray-700 transition-colors">
+          注册
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-b-xl form-shadow p-6 md:p-8 -mt-1">
+      <!-- 登录表单 -->
+      <form id="loginForm">
+        <div class="mb-5">
+          <label for="loginAccount" class="block text-sm font-medium text-gray-700 mb-1">账号（邮箱）</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-user text-gray-400"></i>
+            </div>
+            <input type="text" id="loginAccount" placeholder="请输入邮箱" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <div class="flex justify-between mb-1">
+            <label for="loginPwd" class="block text-sm font-medium text-gray-700">密码</label>
+            <a href="#" class="text-sm text-primary hover:text-accent transition-colors">忘记密码？</a>
+          </div>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-lock text-gray-400"></i>
+            </div>
+            <input type="password" id="loginPwd" placeholder="请输入密码" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-primary hover:bg-accent text-white font-medium py-3 px-4 rounded-lg btn-effect flex justify-center items-center mb-5">
+          <i class="fa fa-sign-in mr-2"></i> 登录
+        </button>
+
+        <div class="relative mb-6">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-200"></div>
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span class="px-2 bg-white text-gray-500">其他登录方式</span>
+          </div>
+        </div>
+
+        <div class="flex justify-center space-x-6">
+          <button type="button" id="wechatLoginBtn" class="w-12 h-12 rounded-full bg-[#07C160] flex items-center justify-center text-white btn-effect">
+            <i class="fa fa-weixin text-lg"></i>
+          </button>
+        </div>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="registerForm" class="hidden">
+        <div class="mb-5">
+          <label for="regName" class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-user-circle text-gray-400"></i>
+            </div>
+            <input type="text" id="regName" placeholder="请设置用户名" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label for="regEmail" class="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-envelope text-gray-400"></i>
+            </div>
+            <input type="email" id="regEmail" placeholder="请输入邮箱（用于登录）" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label for="regCode" class="block text-sm font-medium text-gray-700 mb-1">验证码</label>
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fa fa-shield text-gray-400"></i>
+              </div>
+              <input type="text" id="regCode" placeholder="请输入验证码" 
+                    class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+            </div>
+            <button type="button" id="sendCodeBtn" class="bg-secondary hover:bg-primary text-white font-medium px-6 py-2.5 rounded-lg btn-effect whitespace-nowrap">
+              发送验证码
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label for="regPwd" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-lock text-gray-400"></i>
+            </div>
+            <input type="password" id="regPwd" placeholder="请设置密码（至少6位）" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+          <div class="mt-1 text-xs text-gray-500">
+            <i class="fa fa-info-circle mr-1"></i> 建议包含字母、数字和特殊符号
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <label for="regPwdConfirm" class="block text-sm font-medium text-gray-700 mb-1">确认密码</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fa fa-check-circle text-gray-400"></i>
+            </div>
+            <input type="password" id="regPwdConfirm" placeholder="请再次输入密码" 
+                  class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg input-focus transition-colors">
+          </div>
+        </div>
+
+        <div class="flex items-start mb-6">
+          <div class="flex items-center h-5">
+            <input id="regAgree" type="checkbox" class="w-4 h-4 border border-gray-300 rounded focus:ring-primary">
+          </div>
+          <div class="ml-2 text-sm">
+            <label for="regAgree" class="text-gray-600">我已阅读并同意</label>
+            <a href="#" class="text-primary hover:text-accent">《用户协议》</a>
+            <span class="text-gray-600">和</span>
+            <a href="#" class="text-primary hover:text-accent">《隐私政策》</a>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-primary hover:bg-accent text-white font-medium py-3 px-4 rounded-lg btn-effect flex justify-center items-center">
+          <i class="fa fa-user-plus mr-2"></i> 注册账号
+        </button>
+      </form>
+    </div>
+
+    <div class="mt-8 text-center text-gray-600">
+      <p id="tabHint">还没有账号？<a href="#" id="showRegister" class="text-primary font-medium hover:underline">立即注册</a></p>
+    </div>
+  </main>
+
+  <footer class="mt-auto py-6 px-4 border-t border-gray-100">
+    <div class="container mx-auto text-center text-sm text-gray-500">
+      <p>© 2023 途点儿啥旅行规划平台 · 让旅行更简单</p>
+    </div>
+  </footer>
+
+  <div id="toast" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-accent text-white px-4 py-2 rounded-md shadow-lg opacity-0 transition-all duration-300 flex items-center z-50">
+    <i class="fa fa-info-circle mr-2"></i>
+    <span id="toastText">操作提示</span>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    if (auth.isLoggedIn()) {
+      navigate('/index.html');
+    }
+
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const tabHint = document.getElementById('tabHint');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+    let countdown = 60;
+    let verificationCode = '';
+
+    function showLogin() {
+      loginForm.classList.remove('hidden');
+      registerForm.classList.add('hidden');
+      loginTab.classList.add('text-primary', 'border-primary');
+      loginTab.classList.remove('text-gray-500');
+      registerTab.classList.remove('text-primary', 'border-primary');
+      registerTab.classList.add('text-gray-500');
+      tabHint.innerHTML = '还没有账号？<a href="#" id="showRegister" class="text-primary font-medium hover:underline">立即注册</a>';
+      document.getElementById('showRegister').addEventListener('click', (e) => {
+        e.preventDefault();
+        showRegisterForm();
+      });
+    }
+
+    function showRegisterForm() {
+      registerForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+      registerTab.classList.add('text-primary', 'border-primary');
+      registerTab.classList.remove('text-gray-500');
+      loginTab.classList.remove('text-primary', 'border-primary');
+      loginTab.classList.add('text-gray-500');
+      tabHint.innerHTML = '已有账号？<a href="#" id="showLogin" class="text-primary font-medium hover:underline">立即登录</a>';
+      document.getElementById('showLogin').addEventListener('click', (e) => {
+        e.preventDefault();
+        showLogin();
+      });
+    }
+
+    function showToast(text) {
+      toastText.textContent = text;
+      toast.classList.remove('opacity-0');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        toast.classList.remove('opacity-100');
+      }, 2000);
+    }
+
+    loginTab.addEventListener('click', showLogin);
+    registerTab.addEventListener('click', showRegisterForm);
+
+    // 登录
+    loginForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const account = document.getElementById('loginAccount').value;
+      const pwd = document.getElementById('loginPwd').value;
+      
+      if (!account || !pwd) {
+        showToast('请输入账号和密码');
+        return;
+      }
+
+      try {
+        const result = await post('/users/login', { account, password: pwd });
+        if (result.success) {
+          auth.setUser(result.data);
+          showToast('登录成功！');
+          setTimeout(() => navigate('/index.html'), 1000);
+        } else {
+          showToast(result.message || '登录失败');
+        }
+      } catch (error) {
+        console.error('登录错误:', error);
+        showToast('登录失败，请稍后重试');
+      }
+    });
+
+    // 微信登录
+    document.getElementById('wechatLoginBtn').addEventListener('click', () => {
+      showToast('微信登录功能开发中，敬请期待');
+    });
+
+    // 发送验证码
+    document.getElementById('sendCodeBtn').addEventListener('click', async () => {
+      const email = document.getElementById('regEmail').value;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('请输入正确的邮箱地址');
+        return;
+      }
+
+      try {
+        const result = await post('/email/send-code', { email });
+        console.log('[Debug] 发送验证码响应:', result);
+        console.log('[Debug] result.data:', result.data);
+        
+        // 处理可能的嵌套结构（由于common.js缓存问题）
+        let actualData = result.data;
+        if (actualData && actualData.data && actualData.success !== undefined) {
+          // 如果是嵌套的ApiResponse，取内层的data
+          actualData = actualData.data;
+        }
+        console.log('[Debug] actualData:', actualData);
+        console.log('[Debug] actualData.code:', actualData?.code);
+        
+        if (result.success) {
+          verificationCode = actualData?.code; // 使用修正后的数据
+          showToast('验证码已发送至邮箱');
+          console.log('验证码：', verificationCode);
+
+          const btn = document.getElementById('sendCodeBtn');
+          btn.disabled = true;
+          countdown = 60;
+          const timer = setInterval(() => {
+            countdown--;
+            btn.textContent = `${countdown}秒后重试`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              btn.disabled = false;
+              btn.textContent = '发送验证码';
+            }
+          }, 1000);
+        } else {
+          showToast(result.message || '发送失败，请稍后重试');
+        }
+      } catch (error) {
+        console.error('发送验证码错误:', error);
+        showToast('发送失败，请稍后重试');
+      }
+    });
+
+    // 注册
+    registerForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const code = document.getElementById('regCode').value;
+      const pwd = document.getElementById('regPwd').value;
+      const confirmPwd = document.getElementById('regPwdConfirm').value;
+      const agree = document.getElementById('regAgree').checked;
+
+      if (!name || !email || !code || !pwd || !confirmPwd) {
+        showToast('请填写完整信息');
+        return;
+      }
+      
+      console.log('[Debug] 验证验证码:');
+      console.log('  输入的验证码:', code);
+      console.log('  存储的验证码:', verificationCode);
+      console.log('  是否相等:', code === verificationCode);
+      console.log('  输入的类型:', typeof code);
+      console.log('  存储的类型:', typeof verificationCode);
+      
+      if (code !== verificationCode) {
+        showToast('验证码错误');
+        return;
+      }
+      if (pwd !== confirmPwd) {
+        showToast('两次输入的密码不一致');
+        return;
+      }
+      if (pwd.length < 6) {
+        showToast('密码长度至少6位');
+        return;
+      }
+      if (!agree) {
+        showToast('请同意用户协议和隐私政策');
+        return;
+      }
+
+      try {
+        const result = await post('/users', { username: name, email, password: pwd });
+        if (result.success) {
+          showToast('注册成功，请登录');
+          setTimeout(showLogin, 1500);
+        } else {
+          showToast(result.message || '注册失败');
+        }
+      } catch (error) {
+        console.error('注册错误:', error);
+        showToast('注册失败，请稍后重试');
+      }
+    });
+
+    showLogin();
+  </script>
+</body>
+</html>

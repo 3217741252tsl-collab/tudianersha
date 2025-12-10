@@ -1,0 +1,111 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.log
+*.ctxt
+.mtj.tmp/
+
+# Package Files
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+
+# Eclipse
+.settings/
+.classpath
+.project
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.loadpath
+.recommenders
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+log/
+
+# Application specific
+application-local.yml
+application-dev.yml
+*.pid
+
+# Database
+*.db
+*.sqlite
+*.sql.backup
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+
+# Node modules (if any frontend build tools used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+build/
+dist/
+*.so
+*.dll
+*.dylib
+
+# Test reports
+test-output/
+*.coverage
+.nyc_output/
+
+# Spring Boot
+spring-boot-devtools.properties

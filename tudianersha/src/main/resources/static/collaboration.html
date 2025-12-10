@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>协作编辑 - 途点儿啥</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <style>
+    .timeline-item { position: relative; padding-left: 30px; }
+    .timeline-item::before { content: ''; position: absolute; left: 8px; top: 30px; width: 2px; height: calc(100% - 20px); background: #e5e7eb; }
+    .timeline-dot { position: absolute; left: 0; top: 8px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .flow-node { width: 80px; height: 80px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; position: relative; }
+    .flow-line { height: 2px; flex: 1; margin: 0 -10px; background: linear-gradient(to right, transparent 0%, #3b82f6 20%, #3b82f6 80%, transparent 100%); background-size: 10px 2px; }
+    .flow-line-dashed { background: repeating-linear-gradient(to right, #3b82f6 0px, #3b82f6 10px, transparent 10px, transparent 20px); }
+    
+    /* Chat Styles */
+    .chat-messages {
+      height: 300px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+    .chat-messages::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .mention {
+      color: #3b82f6;
+      background-color: #dbeafe;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .mention-dropdown {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 1000;
+    }
+    .mention-dropdown.active {
+      display: block;
+    }
+    .mention-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mention-item:hover {
+      background-color: #f3f4f6;
+    }
+    .mention-item.selected {
+      background-color: #dbeafe;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- 顶部导航 -->
+  <header class="bg-white shadow-sm">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center gap-4">
+        <button onclick="window.history.back()" class="text-gray-600 hover:text-gray-900">
+          <iconify-icon icon="mdi:arrow-left" width="24"></iconify-icon>
+        </button>
+        <h1 class="text-xl font-bold" id="projectName">国庆七日游</h1>
+        <span class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full">协作中</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex -space-x-2" id="participantAvatars">
+          <!-- 动态加载参与者头像 -->
+        </div>
+        <button id="permissionManageBtn" class="bg-purple-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-600" style="display: none;" onclick="openPermissionModal()">
+          <iconify-icon icon="mdi:account-cog"></iconify-icon>
+          <span>权限管理</span>
+        </button>
+        <button class="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-600" onclick="copyInviteLink()">
+          <iconify-icon icon="mdi:share"></iconify-icon>
+          <span>邀请</span>
+        </button>
+        <button onclick="window.location.href='/index.html'" class="text-gray-600 hover:text-gray-900">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <div class="container mx-auto px-4 py-6">
+    <div class="grid grid-cols-12 gap-4">
+      <!-- 左侧：景点列表 (3列) -->
+      <div class="col-span-3 bg-white rounded-lg shadow p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <iconify-icon icon="mdi:map-marker-multiple" class="text-blue-500"></iconify-icon>
+            景点列表
+          </h3>
+        </div>
+        
+        <!-- 日期选择器 -->
+        <div class="mb-4">
+          <label class="text-sm text-gray-600 mb-2 block">选择日期</label>
+          <select id="daySelector" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" onchange="loadDayAttractions()">
+            <!-- 动态生成天数选项 -->
+          </select>
+        </div>
+        
+        <!-- 景点列表 -->
+        <div class="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto" id="attractionsList">
+          <div class="text-center text-gray-400 py-8">
+            <iconify-icon icon="mdi:map-search" width="48"></iconify-icon>
+            <p class="mt-2 text-sm">加载中...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中间：路线总览 (5列) -->
+      <div class="col-span-5">
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+              <iconify-icon icon="mdi:timeline-text" class="text-purple-500"></iconify-icon>
+              路线总览
+            </h3>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-500" id="currentDayLabel">第1天</span>
+              <button id="addActivityBtn" onclick="openAddActivityModal()" 
+                      class="hidden bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
+                <iconify-icon icon="mdi:plus" width="16"></iconify-icon>
+                新增活动
+              </button>
+            </div>
+          </div>
+          
+          <!-- 当日行程卡片 (横向4列网格) -->
+          <div class="grid grid-cols-4 gap-3" id="dayOverviewGrid">
+            <!-- 动态加载行程卡片 -->
+            <div class="text-center text-gray-400 col-span-4 py-8">
+              <iconify-icon icon="mdi:calendar-blank" width="48"></iconify-icon>
+              <p class="mt-2 text-sm">请选择日期查看行程</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：景点介绍 (4列) -->
+      <div class="col-span-4">
+        <div class="bg-white rounded-lg shadow p-4" id="attractionDetailPanel">
+          <!-- 默认空状态 -->
+          <div class="h-[calc(100vh-200px)] flex flex-col items-center justify-center text-gray-400" id="emptyState">
+            <iconify-icon icon="mdi:information-outline" width="64" class="mb-4"></iconify-icon>
+            <p class="text-lg">点击景点查看介绍</p>
+          </div>
+          
+          <!-- 景点介绍内容 -->
+          <div class="hidden" id="attractionDetail">
+            <!-- 景点标题 -->
+            <div class="mb-4 pb-4 border-b">
+              <h2 class="text-xl font-bold text-gray-800 mb-2" id="attractionName">景点名称</h2>
+              <div class="flex items-center gap-4 text-sm text-gray-600">
+                <div class="flex items-center gap-1">
+                  <iconify-icon icon="mdi:clock-outline"></iconify-icon>
+                  <span id="attractionTime">09:00-12:00</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <iconify-icon icon="mdi:map-marker"></iconify-icon>
+                  <span id="attractionAddress" class="text-xs">地址加载中...</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 基本信息卡片 -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="bg-blue-50 p-3 rounded-lg">
+                <div class="flex items-center gap-2 text-blue-600 mb-1">
+                  <iconify-icon icon="mdi:clock-outline" width="18"></iconify-icon>
+                  <span class="font-semibold text-sm">开放时间</span>
+                </div>
+                <p class="text-gray-700 text-xs" id="openingHours">加载中...</p>
+              </div>
+              <div class="bg-green-50 p-3 rounded-lg">
+                <div class="flex items-center gap-2 text-green-600 mb-1">
+                  <iconify-icon icon="mdi:ticket-outline" width="18"></iconify-icon>
+                  <span class="font-semibold text-sm">门票信息</span>
+                </div>
+                <p class="text-gray-700 text-xs" id="ticketInfo">加载中...</p>
+              </div>
+            </div>
+            
+            <!-- AI 介绍 -->
+            <div class="border-t pt-4">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                  <iconify-icon icon="mdi:robot" class="text-white" width="14"></iconify-icon>
+                </div>
+                <h3 class="text-sm font-bold">AI 智能介绍</h3>
+                <span class="text-xs text-gray-500">by Kimi</span>
+              </div>
+              <div class="prose prose-sm max-w-none">
+                <div id="aiIntroduction" class="text-gray-700 text-sm leading-relaxed max-h-[calc(100vh-500px)] overflow-y-auto">
+                  <div class="flex items-center justify-center py-8">
+                    <iconify-icon icon="mdi:loading" class="text-blue-500 animate-spin" width="24"></iconify-icon>
+                    <span class="ml-2 text-gray-500 text-xs">AI 正在生成介绍...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部聊天 -->
+    <div class="mt-8 border-t pt-4">
+      <h4 class="font-bold mb-3 flex items-center gap-2">
+        <iconify-icon icon="mdi:chat" width="20"></iconify-icon>
+        团队协作
+        <span class="text-xs text-gray-500 font-normal">(@提及成员)</span>
+      </h4>
+      <div class="chat-messages space-y-2 mb-3 p-3 bg-gray-50 rounded-lg" id="chatMessages">
+        <!-- 聊天消息 -->
+      </div>
+      <div class="relative">
+        <div class="mention-dropdown" id="mentionDropdown">
+          <!-- @mention suggestions -->
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="chatInput" placeholder="输入消息... (输入@提及其他用户)" class="flex-1 border rounded-lg px-4 py-2 text-sm" />
+          <button onclick="sendMessage()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <iconify-icon icon="mdi:send"></iconify-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右下角悬浮按钮：导出PDF -->
+  <div class="fixed bottom-8 right-8 z-50">
+    <button onclick="exportPdf()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all duration-300 hover:shadow-xl hover:scale-105">
+      <iconify-icon icon="mdi:file-pdf-box" width="24"></iconify-icon>
+      <span class="font-medium">导出PDF</span>
+    </button>
+  </div>
+
+  <!-- 权限管理弹窗 -->
+  <div id="permissionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden">
+      <div class="bg-gradient-to-r from-purple-500 to-blue-500 px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <iconify-icon icon="mdi:account-cog" width="24"></iconify-icon>
+          权限管理
+        </h2>
+        <button onclick="closePermissionModal()" class="text-white hover:text-gray-200">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      <div class="p-6 overflow-y-auto" style="max-height: calc(80vh - 140px);">
+        <div class="mb-4 text-sm text-gray-600">
+          <p>⚠️ 权限说明：</p>
+          <ul class="list-disc list-inside ml-2 mt-2 space-y-1">
+            <li><strong>编辑者</strong>：可以查看和编辑项目内容</li>
+            <li><strong>查看者</strong>：只能查看项目内容，不能编辑</li>
+          </ul>
+        </div>
+        <div id="participantList" class="space-y-3">
+          <!-- 参与者列表将动态生成 -->
+        </div>
+      </div>
+      <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+        <button onclick="closePermissionModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+        <button onclick="savePermissions()" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增/编辑活动弹窗 -->
+  <div id="activityModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-green-500 to-blue-500 px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <iconify-icon icon="mdi:calendar-plus" width="24"></iconify-icon>
+          新增活动
+        </h2>
+        <button onclick="closeActivityModal()" class="text-white hover:text-gray-200">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      <div class="p-6">
+        <div class="space-y-4">
+          <!-- 活动类型 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">活动类型</label>
+            <select id="activityType" onchange="handleActivityTypeChange()" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
+              <option value="attraction">景点游览</option>
+              <option value="meal">餐饮</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          
+          <!-- 活动名称 -->
+          <div class="relative">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">活动名称 <span class="text-red-500">*</span></label>
+            <input type="text" id="activityName" placeholder="例如：西湖、午餐等" 
+                   oninput="handleActivityNameInput()"
+                   onfocus="showActivitySuggestions()"
+                   class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
+            <!-- 自动补全下拉列表 -->
+            <div id="activitySuggestions" class="hidden absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+              <!-- 动态生成建议列表 -->
+            </div>
+          </div>
+          
+          <!-- 时间段 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">开始时间</label>
+              <input type="time" id="startTime" value="09:00" 
+                     class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">结束时间</label>
+              <input type="time" id="endTime" value="12:00" 
+                     class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
+            </div>
+          </div>
+          
+          <!-- 详细描述 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">详细描述</label>
+            <textarea id="activityDescription" rows="3" placeholder="选填：开放时间、门票等信息" 
+                      class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+        <button onclick="closeActivityModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+        <button onclick="saveActivity()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    // URL参数获取函数
+    function getQueryParam(param) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(param);
+    }
+    
+    if (!auth.isLoggedIn()) {
+      window.location.href = '/login.html';
+      throw new Error('Not logged in');
+    }
+
+    const currentUser = auth.getUser();
+    const projectId = getQueryParam('id');
+    const inviteToken = getQueryParam('invite');
+    
+    // 全局变量
+    let canEdit = false; // 当前用户是否有编辑权限（创建者或编辑者）
+    let currentRouteData = null; // 当前路线数据
+    let currentDayAttractions = []; // 当前天数的景点列表
+    let destinationCity = ''; // 项目目的地城市
+    let activitySuggestionsData = []; // 活动名称自动补全数据
+    
+    // 检查projectId是否存在
+    if (!projectId) {
+      console.error('No project ID found in URL');
+      alert('错误：未找到项目ID');
+      window.location.href = '/index.html';
+    }
+    
+    console.log('Collaboration page initialized with projectId:', projectId);
+    console.log('Current user:', currentUser);
+    console.log('Invite token:', inviteToken);
+    
+    // 加载项目信息
+    async function loadProjectInfo() {
+      if (!projectId) return;
+      
+      try {
+        const response = await fetch(`/api/travel-projects/${projectId}`);
+        if (response.ok) {
+          const project = await response.json();
+          // 更新项目名称
+          document.getElementById('projectName').textContent = project.projectName;
+          
+          // 保存目的地城市（用于景点自动补全）
+          destinationCity = project.destination || '';
+          console.log('[loadProjectInfo] Initial destination:', destinationCity);
+          
+          // 如果目的地不是标准城市名，尝试获取真实城市名
+          if (destinationCity) {
+            console.log('[loadProjectInfo] Calling getCityNameFromDestination...');
+            await getCityNameFromDestination(destinationCity);
+            console.log('[loadProjectInfo] After getCityNameFromDestination, city is now:', destinationCity);
+          }
+          
+          // 检查当前用户是否为创建者
+          const isCreator = project.creatorId === currentUser.id;
+          
+          if (isCreator) {
+            // 创建者显示权限管理按钮
+            document.getElementById('permissionManageBtn').style.display = 'flex';
+            canEdit = true;
+          } else {
+            // 非创建者需要检查是否为编辑者
+            await checkEditPermission();
+          }
+          
+          // 根据权限显示/隐藏新增按钮
+          if (canEdit) {
+            document.getElementById('addActivityBtn').classList.remove('hidden');
+            document.getElementById('addActivityBtn').style.display = 'flex';
+          }
+        }
+      } catch (error) {
+        console.error('Error loading project info:', error);
+      }
+    }
+    
+    // 检查编辑权限
+    async function checkEditPermission() {
+      try {
+        const response = await fetch(`/api/project-participants/project/${projectId}`);
+        if (response.ok) {
+          const participants = await response.json();
+          const currentParticipant = participants.find(p => p.userId === currentUser.id);
+          if (currentParticipant && currentParticipant.permission === 'EDIT') {
+            canEdit = true;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking permission:', error);
+      }
+    }
+    
+    // 从目的地获取城市名称（使用后端Geocoding API）
+    async function getCityNameFromDestination(destination) {
+      console.log('[getCityName] Starting resolution for:', destination);
+      
+      // 如果已经是城市格式（以"市"结尾），直接使用
+      if (destination.endsWith('市')) {
+        console.log('[getCityName] Destination is already a city:', destination);
+        destinationCity = destination;
+        return destination;
+      }
+      
+      try {
+        // 使用后端代理接口
+        const url = `/api/amap-test/geocode?address=${encodeURIComponent(destination)}`;
+        console.log('[getCityName] Calling backend Geocoding API:', url);
+        
+        const response = await fetch(url);
+        console.log('[getCityName] Response status:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[getCityName] API response:', data);
+          
+          if (data.success && data.city) {
+            console.log('[getCityName] Resolved city name:', data.city, 'from destination:', destination);
+            destinationCity = data.city;
+            return data.city;
+          } else {
+            console.warn('[getCityName] Invalid response:', data);
+          }
+        } else {
+          console.error('[getCityName] API call failed with status:', response.status);
+        }
+        
+        console.warn('[getCityName] Failed to resolve city name, using original destination:', destination);
+        // 备用方案：尝试从地址中提取城市名
+        const cityMatch = destination.match(/([\u4e00-\u9fa5]+市)/); // 匹配 "XX市"
+        if (cityMatch) {
+          const extractedCity = cityMatch[1];
+          console.log('[getCityName] Extracted city from pattern:', extractedCity);
+          destinationCity = extractedCity;
+          return extractedCity;
+        }
+        destinationCity = destination;
+        return destination;
+      } catch (error) {
+        console.error('Error resolving city name:', error);
+        return destination;
+      }
+    }
+    
+    // 如果是通过邀请链接进入，自动添加用户到项目
+    async function handleInviteLink() {
+      if (!inviteToken || !projectId) return;
+      
+      try {
+        // 检查用户是否已经是参与者
+        const checkResponse = await fetch(`/api/project-participants/project/${projectId}`);
+        if (checkResponse.ok) {
+          const participants = await checkResponse.json();
+          const alreadyParticipant = participants.some(p => p.userId === currentUser.id);
+          
+          if (!alreadyParticipant) {
+            // 添加用户到项目参与者
+            const addResponse = await fetch('/api/project-participants', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                projectId: parseInt(projectId),
+                userId: currentUser.id,
+                role: '参与者',
+                joinTime: new Date().toISOString()
+              })
+            });
+            
+            if (addResponse.ok) {
+              console.log('成功加入项目');
+              // 重新加载参与者列表
+              await loadProjectParticipants();
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error handling invite link:', error);
+      }
+    }
+    
+    // 全局变量已在上方声明
+    
+    // 加载选中路线的天数选项
+    async function loadDayOptions() {
+      console.log('Loading day options for project:', projectId);
+      try {
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        if (!projectResponse.ok) {
+          console.error('Failed to load project:', projectResponse.status);
+          showNoRouteMessage();
+          return;
+        }
+        
+        const project = await projectResponse.json();
+        console.log('Project loaded:', project);
+        const currentRouteId = project.currentRouteId;
+        
+        if (!currentRouteId) {
+          console.warn('No route selected for this project');
+          showNoRouteMessage();
+          return;
+        }
+        
+        console.log('Loading route:', currentRouteId);
+        const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteId}`);
+        if (!routeResponse.ok) {
+          console.error('Failed to load route:', routeResponse.status);
+          showNoRouteMessage();
+          return;
+        }
+        
+        const route = await routeResponse.json();
+        console.log('Route loaded:', route);
+        currentRouteData = route;
+        
+        // 解析行程数据
+        if (route.dailyItinerary) {
+          const dailyItinerary = JSON.parse(route.dailyItinerary);
+          console.log('Daily itinerary parsed:', dailyItinerary);
+          const daySelector = document.getElementById('daySelector');
+          
+          // 获取项目开始日期
+          const startDate = new Date(project.startDate);
+          
+          daySelector.innerHTML = dailyItinerary.map((day, index) => {
+            const dayNumber = day.day || (index + 1);
+            // 计算当前天的具体日期
+            const currentDate = new Date(startDate);
+            currentDate.setDate(startDate.getDate() + index);
+            
+            // 格式化日期：月月日日
+            const month = currentDate.getMonth() + 1;
+            const date = currentDate.getDate();
+            const dateStr = `${month}月${date}日`;
+            
+            return `<option value="${dayNumber}">${dateStr}（第${dayNumber}天）</option>`;
+          }).join('');
+          
+          // 默认加载第一天
+          loadDayAttractions();
+        } else {
+          console.warn('Route has no daily itinerary');
+          showNoRouteMessage();
+        }
+      } catch (error) {
+        console.error('Error loading day options:', error);
+        showNoRouteMessage();
+      }
+    }
+    
+    // 显示无路线提示
+    function showNoRouteMessage() {
+      console.log('Showing no route message...');
+      const attractionsList = document.getElementById('attractionsList');
+      if (!attractionsList) {
+        console.error('attractionsList element not found!');
+        return;
+      }
+      attractionsList.innerHTML = `
+        <div class="text-center text-gray-500 py-8">
+          <iconify-icon icon="mdi:map-marker-off-outline" width="64" class="text-gray-300 mb-4"></iconify-icon>
+          <p class="text-lg font-semibold mb-2">暂未选择路线方案</p>
+          <p class="text-sm mb-4">请先前往路线选择页面选择一个AI生成的方案</p>
+          <a href="/route-selection.html?id=${projectId}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
+            <iconify-icon icon="mdi:map-search" class="mr-2"></iconify-icon>
+            前往选择路线
+          </a>
+        </div>
+      `;
+      console.log('No route message displayed');
+    }
+    
+    // 加载指定天数的景点
+    async function loadDayAttractions() {
+      const selectedDay = parseInt(document.getElementById('daySelector').value);
+      
+      if (!currentRouteData || !currentRouteData.dailyItinerary) {
+        document.getElementById('attractionsList').innerHTML = `
+          <div class="text-center text-gray-400 py-8">
+            <iconify-icon icon="mdi:alert-circle" width="48"></iconify-icon>
+            <p class="mt-2 text-sm">暂无行程数据</p>
+          </div>
+        `;
+        return;
+      }
+      
+      try {
+        // 获取项目信息以计算具体日期
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const project = await projectResponse.json();
+        const startDate = new Date(project.startDate);
+        
+        const dailyItinerary = JSON.parse(currentRouteData.dailyItinerary);
+        const dayData = dailyItinerary.find(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+        
+        if (!dayData || !dayData.activities) {
+          document.getElementById('attractionsList').innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+              <p class="text-sm">当天暂无景点</p>
+            </div>
+          `;
+          return;
+        }
+        
+        // 提取景点（过滤掉餐饮）
+        const attractions = [];
+        dayData.activities.forEach((activity, index) => {
+          // 解析活动字符串
+          const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
+          let timeRange = '';
+          let content = activity;
+          
+          if (timeMatch) {
+            timeRange = timeMatch[1];
+            content = timeMatch[2];
+          }
+          
+          // 只保留景点相关的（包含"景点”关键词或时间在非用餐时段）
+          if (content.includes('景点：') || 
+              content.includes('上午：') || 
+              content.includes('下午：') || 
+              content.includes('晚上：') ||
+              (!content.includes('早餐') && !content.includes('午餐') && !content.includes('晚餐'))) {
+            
+            // 提取景点名称
+            const attractionName = extractAttractionName(content);
+            if (attractionName) {
+              attractions.push({
+                index: index,
+                name: attractionName,
+                time: timeRange,
+                fullActivity: activity,
+                rawContent: content
+              });
+            }
+          }
+        });
+        
+        currentDayAttractions = attractions;
+        renderAttractionsList(attractions);
+        
+        // 更新当前天数标签（显示具体日期）
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + (selectedDay - 1));
+        const month = currentDate.getMonth() + 1;
+        const date = currentDate.getDate();
+        const dateStr = `${month}月${date}日`;
+        document.getElementById('currentDayLabel').textContent = `${dateStr}（第${selectedDay}天）`;
+        
+        // 渲染路线总览（显示所有活动）
+        renderDayOverview(dayData.activities, selectedDay);
+        
+      } catch (error) {
+        console.error('Error loading day attractions:', error);
+      }
+    }
+    
+    // 提取景点名称
+    function extractAttractionName(content) {
+      // 移除时间段
+      content = content.replace(/^\d{2}:\d{2}-\d{2}:\d{2}\s*/, '');
+      
+      // 移除前缀
+      content = content.replace(/^[早午晚]餐[:：\s]*/, '');
+      content = content.replace(/^[上下]午[:：\s]*/, '');
+      content = content.replace(/^晚上[:：\s]*/, '');
+      content = content.replace(/^景点[:：\s]*/, '');
+      
+      // 提取【】中的内容
+      const bracketMatch = content.match(/【([^】]+)】/);
+      if (bracketMatch) {
+        return bracketMatch[1].trim();
+      }
+      
+      // 提取第一个逗号或句号之前的内容
+      const parts = content.split(/[,，。：:]/);
+      if (parts.length > 0) {
+        const name = parts[0].trim();
+        // 移除“参观”、“游览”等动词
+        return name.replace(/^(参观|游览|前往|打卡)/, '').trim();
+      }
+      
+      return content.substring(0, 20).trim();
+    }
+    
+    // 渲染景点列表
+    function renderAttractionsList(attractions) {
+      const listContainer = document.getElementById('attractionsList');
+      
+      if (attractions.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center text-gray-400 py-8">
+            <iconify-icon icon="mdi:map-marker-off" width="48"></iconify-icon>
+            <p class="mt-2 text-sm">当天没有景点安排</p>
+          </div>
+        `;
+        return;
+      }
+      
+      listContainer.innerHTML = attractions.map((attr, index) => `
+        <div class="p-3 border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all attraction-item cursor-pointer" 
+             onclick="showAttractionDetail(${index})"
+             data-index="${index}">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <iconify-icon icon="mdi:map-marker" class="text-blue-600" width="20"></iconify-icon>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h4 class="font-semibold text-gray-800 truncate">${attr.name}</h4>
+              <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <iconify-icon icon="mdi:clock-outline" width="12"></iconify-icon>
+                ${attr.time || '时间未设置'}
+              </p>
+            </div>
+            <iconify-icon icon="mdi:chevron-right" class="text-gray-400" width="20"></iconify-icon>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // 渲染路线总览（横向4列网格）
+    function renderDayOverview(activities, selectedDay) {
+      const gridContainer = document.getElementById('dayOverviewGrid');
+      
+      if (!activities || activities.length === 0) {
+        gridContainer.innerHTML = `
+          <div class="text-center text-gray-400 col-span-4 py-8">
+            <iconify-icon icon="mdi:calendar-blank" width="48"></iconify-icon>
+            <p class="mt-2 text-sm">当天暂无行程</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // 解析每个活动
+      const parsedActivities = activities.map((activity, index) => {
+        const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
+        let timeRange = '未设置';
+        let content = activity;
+        let activityType = 'other'; // attraction, meal, other
+        let icon = 'mdi:map-marker';
+        let bgColor = 'bg-gray-100';
+        let textColor = 'text-gray-600';
+        
+        if (timeMatch) {
+          timeRange = timeMatch[1];
+          content = timeMatch[2];
+        }
+        
+        // 判断活动类型
+        if (content.includes('早餐') || content.includes('午餐') || content.includes('晚餐')) {
+          activityType = 'meal';
+          icon = 'mdi:silverware-fork-knife';
+          bgColor = 'bg-orange-100';
+          textColor = 'text-orange-600';
+        } else if (content.includes('景点') || content.includes('上午') || content.includes('下午') || content.includes('晚上')) {
+          activityType = 'attraction';
+          icon = 'mdi:map-marker';
+          bgColor = 'bg-blue-100';
+          textColor = 'text-blue-600';
+        }
+        
+        // 提取名称（简化版）
+        let displayName = content;
+        displayName = displayName.replace(/^景点[::：]/, '');
+        displayName = displayName.replace(/^[上下]午[::：]/, '');
+        displayName = displayName.replace(/^晚上[::：]/, '');
+        displayName = displayName.replace(/^[早午晚]餐[::：]/, '');
+        
+        // 提取【】中的内容
+        const bracketMatch = displayName.match(/【([^】]+)】/);
+        if (bracketMatch) {
+          displayName = bracketMatch[1];
+        } else {
+          // 只取第一个逗号前的内容
+          displayName = displayName.split(/[,，。]/)[ 0];
+        }
+        
+        return {
+          time: timeRange,
+          name: displayName.substring(0, 12).trim(),
+          fullContent: content,
+          type: activityType,
+          icon,
+          bgColor,
+          textColor,
+          originalIndex: index // 保存原始索引用于删除
+        };
+      });
+      
+      // 渲染卡片（4列网格）
+      gridContainer.innerHTML = parsedActivities.map((activity, index) => `
+        <div class="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group">
+          ${canEdit ? `
+            <button onclick="event.stopPropagation(); deleteAttraction(${activity.originalIndex})" 
+                    class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
+                    title="删除活动">
+              <iconify-icon icon="mdi:close" width="14"></iconify-icon>
+            </button>
+          ` : ''}
+          <div class="flex flex-col h-full">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-8 h-8 ${activity.bgColor} rounded-full flex items-center justify-center flex-shrink-0">
+                <iconify-icon icon="${activity.icon}" class="${activity.textColor}" width="16"></iconify-icon>
+              </div>
+              <span class="text-xs font-semibold ${activity.textColor}">${activity.time}</span>
+            </div>
+            <h5 class="text-sm font-medium text-gray-800 line-clamp-2 flex-1">${activity.name}</h5>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // 显示景点详情
+    async function showAttractionDetail(index) {
+      const attraction = currentDayAttractions[index];
+      if (!attraction) return;
+      
+      // 隐藏空状态，显示详情
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('attractionDetail').classList.remove('hidden');
+      
+      // 高亮当前选中的景点
+      document.querySelectorAll('.attraction-item').forEach(item => {
+        item.classList.remove('bg-blue-50', 'border-blue-300');
+      });
+      document.querySelector(`.attraction-item[data-index="${index}"]`)?.classList.add('bg-blue-50', 'border-blue-300');
+      
+      // 设置基本信息
+      document.getElementById('attractionName').textContent = attraction.name;
+      document.getElementById('attractionTime').textContent = attraction.time || '时间未设置';
+      
+      // 重置加载状态
+      document.getElementById('openingHours').textContent = '加载中...';
+      document.getElementById('ticketInfo').textContent = '加载中...';
+      document.getElementById('attractionAddress').textContent = '加载中...';
+      document.getElementById('aiIntroduction').innerHTML = `
+        <div class="flex items-center justify-center py-8">
+          <iconify-icon icon="mdi:loading" class="text-blue-500 animate-spin" width="32"></iconify-icon>
+          <span class="ml-2 text-gray-500">AI 正在生成介绍...</span>
+        </div>
+      `;
+      
+      // 获取高德景点信息（图片 + 基本信息）
+      await loadAmapInfo(attraction);
+      
+      // 生成AI介绍
+      await generateAIIntroduction(attraction);
+    }
+    
+    // 加载高德景点信息（只获取地址）
+    async function loadAmapInfo(attraction) {
+      try {
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const project = await projectResponse.json();
+        const city = project.destination;
+        
+        console.log('Loading Amap info for:', attraction.name, 'in', city);
+        
+        const response = await fetch(`/api/amap-test/poi-detail?keyword=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`);
+        if (!response.ok) {
+          console.warn('Amap API response not OK:', response.status);
+          throw new Error('Failed to fetch');
+        }
+        
+        const data = await response.json();
+        console.log('Amap API returned:', data);
+        
+        // 优先使用高德返回的地址
+        if (data && data.address) {
+          // 直接使用高德返回的地址
+          console.log('Using Amap address:', data.address);
+          document.getElementById('attractionAddress').textContent = data.address;
+        } else if (data && data.name) {
+          // 有POI信息但没有地址
+          console.log('POI found but no address available');
+          document.getElementById('attractionAddress').textContent = '地址信息暂无';
+        } else {
+          // 没有找到景点信息
+          console.log('No POI found');
+          document.getElementById('attractionAddress').textContent = '未找到景点';
+        }
+        
+        // 设置开放时间和门票（从行程中提取）
+        extractOpeningHoursAndTicket(attraction.rawContent);
+        
+      } catch (error) {
+        console.error('Error loading Amap info:', error);
+        document.getElementById('attractionAddress').textContent = '暂无定位信息';
+        extractOpeningHoursAndTicket(attraction.rawContent);
+      }
+    }
+    
+    // 从文本中提取开放时间和门票信息
+    function extractOpeningHoursAndTicket(content) {
+      // 提取开放时间
+      const openingMatch = content.match(/开放时间[::：]([^，,。]+)/);
+      if (openingMatch) {
+        document.getElementById('openingHours').textContent = openingMatch[1].trim();
+      } else {
+        document.getElementById('openingHours').textContent = '未标注';
+      }
+      
+      // 提取门票信息
+      const ticketMatch = content.match(/门票[::：]([^，,。]+)/);
+      if (ticketMatch) {
+        document.getElementById('ticketInfo').textContent = ticketMatch[1].trim();
+      } else {
+        document.getElementById('ticketInfo').textContent = '未标注';
+      }
+    }
+    
+    // 生成AI介绍
+    async function generateAIIntroduction(attraction) {
+      try {
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const project = await projectResponse.json();
+        const city = project.destination;
+        
+        const response = await fetch(`/api/amap-test/attraction-intro?name=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`);
+        if (!response.ok) throw new Error('Failed to fetch');
+        
+        const data = await response.json();
+        
+        if (data.success && data.introduction) {
+          // 格式化介绍文本为段落
+          const paragraphs = data.introduction.split('\n').filter(p => p.trim().length > 0);
+          const formattedIntro = paragraphs.map(p => `<p class="mb-3">${p.trim()}</p>`).join('');
+          document.getElementById('aiIntroduction').innerHTML = formattedIntro;
+        } else {
+          // 使用默认介绍
+          const introduction = `
+            <p class="mb-3">${attraction.name}是一处具有重要历史和文化意义的景点。这里不仅风景优美，而且蕴含着丰富的历史故事和文化底蕴。</p>
+            <p class="mb-3">景点周边配套设施完善，交通便利，是游客必打卡的热门地点之一。建议您提前了解相关历史背景，这样能更好地欣赏和理解景点的内涵。</p>
+            <p>游览过程中请注意保护文物，不要在文物古迹上刻画或涂写。同时建议携带相机，记录下美好的旅行回忆。</p>
+          `;
+          document.getElementById('aiIntroduction').innerHTML = introduction;
+        }
+      } catch (error) {
+        console.error('Error generating AI introduction:', error);
+        // 使用默认介绍
+        const introduction = `
+          <p class="mb-3">${attraction.name}是一处具有重要历史和文化意义的景点。这里不仅风景优美，而且蕴含着丰富的历史故事和文化底蕴。</p>
+          <p class="mb-3">景点周边配套设施完善，交通便利，是游客必打卡的热门地点之一。建议您提前了解相关历史背景，这样能更好地欣赏和理解景点的内涵。</p>
+          <p>游览过程中请注意保护文物，不要在文物古迹上刻画或涂写。同时建议携带相机，记录下美好的旅行回忆。</p>
+        `;
+        document.getElementById('aiIntroduction').innerHTML = introduction;
+      }
+    }
+
+    // 项目参与者列表
+    let projectParticipants = [];
+    let lastMessageId = 0; // 记录最后一条消息的ID
+    
+    // 加载项目参与者
+    async function loadProjectParticipants() {
+      if (!projectId) return;
+      try {
+        const response = await fetch(`/api/project-participants/project/${projectId}`);
+        if (response.ok) {
+          projectParticipants = await response.json();
+          // 获取用户详细信息
+          for (let participant of projectParticipants) {
+            try {
+              const userResponse = await fetch(`/api/users/${participant.userId}`);
+              if (userResponse.ok) {
+                participant.userInfo = await userResponse.json();
+              }
+            } catch (err) {
+              console.error('Error loading user info:', err);
+            }
+          }
+          // 渲染参与者头像
+          renderParticipantAvatars();
+        }
+      } catch (error) {
+        console.error('Error loading project participants:', error);
+      }
+    }
+    
+    // 渲染参与者头像
+    function renderParticipantAvatars() {
+      const container = document.getElementById('participantAvatars');
+      const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+      
+      const maxDisplay = 5; // 最多显示5个头像
+      const displayParticipants = projectParticipants.slice(0, maxDisplay);
+      const remaining = projectParticipants.length - maxDisplay;
+      
+      container.innerHTML = displayParticipants.map((p, idx) => {
+        const username = p.userInfo?.username || `用户${p.userId}`;
+        const initial = username.charAt(0).toUpperCase();
+        const color = colors[idx % colors.length];
+        const isCurrentUser = p.userId === currentUser.id;
+        
+        return `
+          <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold ${isCurrentUser ? 'ring-2 ring-blue-400' : ''}" 
+               style="background: ${color};" 
+               title="${username}${isCurrentUser ? ' (你)' : ''}">
+            ${initial}
+          </div>
+        `;
+      }).join('');
+      
+      // 如果还有更多参与者，显示+N
+      if (remaining > 0) {
+        container.innerHTML += `
+          <div class="w-8 h-8 rounded-full bg-gray-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold" 
+               title="还有${remaining}位参与者">
+            +${remaining}
+          </div>
+        `;
+      }
+    }
+    
+    // 打开权限管理弹窗
+    function openPermissionModal() {
+      const modal = document.getElementById('permissionModal');
+      modal.classList.remove('hidden');
+      renderParticipantList();
+    }
+    
+    // 关闭权限管理弹窗
+    function closePermissionModal() {
+      const modal = document.getElementById('permissionModal');
+      modal.classList.add('hidden');
+    }
+    
+    // 渲染参与者列表（权限管理）
+    function renderParticipantList() {
+      const container = document.getElementById('participantList');
+      const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+      
+      // 过滤掉创建者，只显示其他参与者
+      const editableParticipants = projectParticipants.filter(p => p.role !== '创建者');
+      
+      if (editableParticipants.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无其他参与者</p>';
+        return;
+      }
+      
+      container.innerHTML = editableParticipants.map((p, idx) => {
+        const username = p.userInfo?.username || `用户${p.userId}`;
+        const initial = username.charAt(0).toUpperCase();
+        const color = colors[idx % colors.length];
+        const currentRole = p.role || '查看者';
+        
+        return `
+          <div class="bg-gray-50 rounded-lg p-4 flex items-center justify-between hover:bg-gray-100 transition-colors">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold" 
+                   style="background: ${color};">
+                ${initial}
+              </div>
+              <div>
+                <div class="font-semibold text-gray-800">${username}</div>
+                <div class="text-sm text-gray-500">ID: ${p.userId}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <select class="permission-select px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                      data-participant-id="${p.id}" data-user-id="${p.userId}">
+                <option value="编辑者" ${currentRole === '编辑者' ? 'selected' : ''}>📝 编辑者</option>
+                <option value="查看者" ${currentRole === '查看者' || currentRole === '参与者' ? 'selected' : ''}>👁️ 查看者</option>
+              </select>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // 保存权限修改
+    async function savePermissions() {
+      const selects = document.querySelectorAll('.permission-select');
+      const updates = [];
+      
+      for (let select of selects) {
+        const participantId = select.getAttribute('data-participant-id');
+        const newRole = select.value;
+        
+        updates.push({
+          participantId: parseInt(participantId),
+          role: newRole
+        });
+      }
+      
+      try {
+        // 逐个更新权限
+        for (let update of updates) {
+          const response = await fetch(`/api/project-participants/${update.participantId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              role: update.role
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error('更新权限失败');
+          }
+        }
+        
+        alert('✅ 权限修改成功！');
+        closePermissionModal();
+        
+        // 重新加载参与者列表
+        await loadProjectParticipants();
+        
+      } catch (error) {
+        console.error('Error saving permissions:', error);
+        alert('❌ 权限修改失败，请重试');
+      }
+    }
+    
+    // 复制邀请链接
+    function copyInviteLink() {
+      const token = Math.random().toString(36).substring(2, 15);
+      const shareUrl = `${window.location.origin}/collaboration.html?id=${projectId}&invite=${token}`;
+      
+      const tempInput = document.createElement('input');
+      tempInput.value = shareUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      
+      alert('协作链接已复制到剪贴板！其他用户可直接加入协作。');
+    }
+
+    // 加载聊天消息
+    async function loadChatMessages() {
+      if (!projectId) return;
+      try {
+        const response = await fetch(`/api/chat-messages/project/${projectId}`);
+        if (response.ok) {
+          const messages = await response.json();
+          renderChat(messages);
+          if (messages.length > 0) {
+            lastMessageId = messages[messages.length - 1].id;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading chat messages:', error);
+      }
+    }
+    
+    // 轮询新消息
+    async function pollNewMessages() {
+      if (!projectId || lastMessageId === 0) return;
+      try {
+        const response = await fetch(`/api/chat-messages/project/${projectId}/new?lastMessageId=${lastMessageId}`);
+        if (response.ok) {
+          const newMessages = await response.json();
+          if (newMessages.length > 0) {
+            appendNewMessages(newMessages);
+            lastMessageId = newMessages[newMessages.length - 1].id;
+          }
+        }
+      } catch (error) {
+        console.error('Error polling new messages:', error);
+      }
+    }
+
+    function renderChat(messages) {
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = messages.map(msg => {
+        const isCurrentUser = msg.userId === currentUser.id;
+        const timeAgo = formatTimeAgo(msg.createdTime);
+        return `
+          <div class="${isCurrentUser ? 'flex justify-end' : ''}">
+            <div class="${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border'} p-3 rounded-lg max-w-[80%] shadow-sm">
+              <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
+              <div class="text-sm break-words">${msg.message}</div>
+              <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      // 自动滚动到底部
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    function appendNewMessages(messages) {
+      const container = document.getElementById('chatMessages');
+      messages.forEach(msg => {
+        const isCurrentUser = msg.userId === currentUser.id;
+        const timeAgo = formatTimeAgo(msg.createdTime);
+        const messageEl = document.createElement('div');
+        messageEl.className = isCurrentUser ? 'flex justify-end' : '';
+        messageEl.innerHTML = `
+          <div class="${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border'} p-3 rounded-lg max-w-[80%] shadow-sm">
+            <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
+            <div class="text-sm break-words">${msg.message}</div>
+            <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
+          </div>
+        `;
+        container.appendChild(messageEl);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    function formatTimeAgo(timestamp) {
+      const now = new Date();
+      const time = new Date(timestamp);
+      const diff = Math.floor((now - time) / 1000); // seconds
+      
+      if (diff < 60) return '刚刚';
+      if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+      return time.toLocaleDateString();
+    }
+
+    // @mention 功能
+    let mentionMode = false;
+    let mentionSearchText = '';
+    let selectedMentionIndex = 0;
+    let mentionStartPos = 0;
+
+    function showMentionDropdown(searchText = '') {
+      const dropdown = document.getElementById('mentionDropdown');
+      const filtered = projectParticipants.filter(p => {
+        const username = p.userInfo?.username || `用户${p.userId}`;
+        return username.toLowerCase().includes(searchText.toLowerCase());
+      });
+
+      if (filtered.length === 0) {
+        dropdown.classList.remove('active');
+        return;
+      }
+
+      dropdown.innerHTML = filtered.map((p, idx) => {
+        const username = p.userInfo?.username || `用户${p.userId}`;
+        const email = p.userInfo?.email || '';
+        return `
+          <div class="mention-item ${idx === selectedMentionIndex ? 'selected' : ''}" data-index="${idx}" data-username="${username}">
+            <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+              ${username.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div class="text-sm font-medium">${username}</div>
+              ${email ? `<div class="text-xs text-gray-500">${email}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      dropdown.classList.add('active');
+
+      // 绑定点击事件
+      dropdown.querySelectorAll('.mention-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectMention(item.getAttribute('data-username'));
+        });
+      });
+    }
+
+    function hideMentionDropdown() {
+      document.getElementById('mentionDropdown').classList.remove('active');
+      mentionMode = false;
+      mentionSearchText = '';
+      selectedMentionIndex = 0;
+    }
+
+    function selectMention(username) {
+      const input = document.getElementById('chatInput');
+      const beforeMention = input.value.substring(0, mentionStartPos);
+      const afterMention = input.value.substring(input.selectionStart);
+      input.value = beforeMention + '@' + username + ' ' + afterMention;
+      hideMentionDropdown();
+      input.focus();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (text) {
+        try {
+          // 保存消息到数据库
+          const response = await fetch('/api/chat-messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              projectId: projectId,
+              userId: currentUser.id,
+              username: currentUser.username,
+              message: text,
+              createdTime: new Date().toISOString()
+            })
+          });
+          
+          if (response.ok) {
+            const savedMessage = await response.json();
+            // 立即显示自己的消息
+            appendNewMessages([savedMessage]);
+            lastMessageId = savedMessage.id;
+            input.value = '';
+            hideMentionDropdown();
+          }
+        } catch (error) {
+          console.error('Error sending message:', error);
+          alert('发送消息失败');
+        }
+      }
+    }
+
+    // 聊天输入框事件监听
+    const chatInput = document.getElementById('chatInput');
+    
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !mentionMode) {
+        e.preventDefault();
+        sendMessage();
+      } else if (mentionMode) {
+        const dropdown = document.getElementById('mentionDropdown');
+        const items = dropdown.querySelectorAll('.mention-item');
+        
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          selectedMentionIndex = Math.min(selectedMentionIndex + 1, items.length - 1);
+          showMentionDropdown(mentionSearchText);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          selectedMentionIndex = Math.max(selectedMentionIndex - 1, 0);
+          showMentionDropdown(mentionSearchText);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const selectedItem = items[selectedMentionIndex];
+          if (selectedItem) {
+            selectMention(selectedItem.getAttribute('data-username'));
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          hideMentionDropdown();
+        }
+      }
+    });
+
+    chatInput.addEventListener('input', (e) => {
+      const value = e.target.value;
+      const cursorPos = e.target.selectionStart;
+      
+      // 检测 @ 符号
+      const textBeforeCursor = value.substring(0, cursorPos);
+      const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+      
+      if (lastAtIndex !== -1) {
+        const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
+        // 如果 @ 后面没有空格，进入 mention 模式
+        if (!textAfterAt.includes(' ')) {
+          mentionMode = true;
+          mentionStartPos = lastAtIndex;
+          mentionSearchText = textAfterAt;
+          selectedMentionIndex = 0;
+          showMentionDropdown(mentionSearchText);
+        } else {
+          hideMentionDropdown();
+        }
+      } else {
+        hideMentionDropdown();
+      }
+    });
+
+    // 点击外部关闭下拉框
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#chatInput') && !e.target.closest('#mentionDropdown')) {
+        hideMentionDropdown();
+      }
+    });
+
+    // 分享文档功能
+    function shareDocument() {
+      if (projectId) {
+        window.location.href = `/share.html?id=${projectId}`;
+      } else {
+        alert('项目 ID不存在，无法分享');
+      }
+    }
+        
+    // 导出PDF功能
+    async function exportPdf() {
+      if (!projectId) {
+        alert('项目 ID 不存在');
+        return;
+      }
+          
+      try {
+        console.log('[PDF Export] 开始下载PDF...');
+            
+        // 显示加载状态
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<iconify-icon icon="mdi:loading" class="animate-spin" width="24"></iconify-icon><span class="font-medium">生成中...</span>';
+        btn.disabled = true;
+            
+        // 调用后端API
+        const response = await fetch(`/api/pdf/itinerary/${projectId}`);
+            
+        if (!response.ok) {
+          throw new Error('PDF生成失败');
+        }
+            
+        // 获取PDF数据
+        const blob = await response.blob();
+            
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `旅行行程-${projectId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+            
+        // 清理
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+            
+        console.log('[PDF Export] PDF下载成功');
+            
+        // 恢复按钮状态
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+            
+      } catch (error) {
+        console.error('[PDF Export] 导出PDF失败:', error);
+        alert('PDF导出失败，请稍后重试');
+            
+        // 恢复按钮状态
+        const btn = event.target.closest('button');
+        btn.innerHTML = '<iconify-icon icon="mdi:file-pdf-box" width="24"></iconify-icon><span class="font-medium">导出PDF</span>';
+        btn.disabled = false;
+      }
+    }
+
+    // ========== 活动管理功能 ==========
+    
+    // 打开添加活动弹窗
+    function openAddActivityModal() {
+      document.getElementById('activityModal').classList.remove('hidden');
+      // 清空表单
+      document.getElementById('activityName').value = '';
+      document.getElementById('activityType').value = 'attraction';
+      document.getElementById('startTime').value = '09:00';
+      document.getElementById('endTime').value = '12:00';
+      document.getElementById('activityDescription').value = '';
+      document.getElementById('activitySuggestions').classList.add('hidden');
+      activitySuggestionsData = [];
+    }
+    
+    // 活动类型变化时的处理
+    function handleActivityTypeChange() {
+      const type = document.getElementById('activityType').value;
+      const nameInput = document.getElementById('activityName');
+      
+      // 根据类型调整提示文本
+      if (type === 'attraction') {
+        nameInput.placeholder = '输入景点名称，如：西湖';
+      } else if (type === 'meal') {
+        nameInput.placeholder = '输入餐厅或餐食名称';
+      } else {
+        nameInput.placeholder = '输入活动名称';
+      }
+      
+      // 清空输入和建议
+      nameInput.value = '';
+      document.getElementById('activitySuggestions').classList.add('hidden');
+      activitySuggestionsData = [];
+    }
+    
+    // 活动名称输入时的处理
+    let activityInputTimeout = null;
+    async function handleActivityNameInput() {
+      const type = document.getElementById('activityType').value;
+      const keyword = document.getElementById('activityName').value.trim();
+      
+      // 只有当类型为“景点游览”时才启用自动补全
+      if (type !== 'attraction') {
+        document.getElementById('activitySuggestions').classList.add('hidden');
+        return;
+      }
+      
+      if (!keyword) {
+        document.getElementById('activitySuggestions').classList.add('hidden');
+        activitySuggestionsData = [];
+        return;
+      }
+      
+      // 防抖处理
+      if (activityInputTimeout) {
+        clearTimeout(activityInputTimeout);
+      }
+      
+      activityInputTimeout = setTimeout(async () => {
+        await fetchActivitySuggestions(keyword);
+      }, 300);
+    }
+    
+   // 获取景点建议
+    async function fetchActivitySuggestions(keyword) {
+      if (!destinationCity) {
+        console.warn('Destination city not set');
+        return;
+      }
+      
+      // 在每次搜索前尝试解析城市名称（防止缓存问题）
+      let searchCity = destinationCity;
+      
+      // 如果城市名称包含"站"、"镇"等，尝试通过地理编码获取真实城市
+      if (searchCity.includes('站') || searchCity.includes('镇') || searchCity.includes('村')) {
+        console.log('[fetchActivitySuggestions] Destination looks like a location, not a city:', searchCity);
+        try {
+          const url = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(searchCity)}&key=bf0e97cd7a4c3c6aaa8ecf3dd7485381`;
+          const geoResponse = await fetch(url);
+          if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData.status === '1' && geoData.geocodes && geoData.geocodes.length > 0) {
+              const geocode = geoData.geocodes[0];
+              let city = geocode.city;
+              if (!city || (Array.isArray(city) && city.length === 0) || city === '') {
+                city = geocode.province || geocode.district;
+              }
+              if (city && city !== searchCity) {
+                console.log('[fetchActivitySuggestions] Resolved city:', city, 'from:', searchCity);
+                searchCity = city;
+                destinationCity = city; // 更新全局变量
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[fetchActivitySuggestions] Failed to resolve city, using original:', error);
+        }
+      }
+      
+      console.log('Fetching POI suggestions for:', keyword, 'in city:', searchCity);
+      
+      try {
+        const types = encodeURIComponent('110000|120000|130000|140000');
+        const response = await fetch(
+          `/api/amap-test/poi-search?keyword=${encodeURIComponent(keyword)}&city=${encodeURIComponent(searchCity)}&types=${types}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('POI search result:', data);
+          activitySuggestionsData = data.pois || [];
+          renderActivitySuggestions();
+        } else {
+          console.error('POI search failed with status:', response.status);
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error details:', errorData);
+        }
+      } catch (error) {
+        console.error('Error fetching activity suggestions:', error);
+      }
+    }
+    
+    // 渲染景点建议列表
+    function renderActivitySuggestions() {
+      const suggestionsDiv = document.getElementById('activitySuggestions');
+      
+      if (activitySuggestionsData.length === 0) {
+        suggestionsDiv.classList.add('hidden');
+        return;
+      }
+      
+      suggestionsDiv.innerHTML = activitySuggestionsData.slice(0, 10).map(poi => `
+        <div class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0" 
+             onclick="selectActivitySuggestion('${poi.name.replace(/'/g, "\\'")}')"
+             title="${poi.address || ''}">
+          <div class="font-medium text-gray-800">${poi.name}</div>
+          <div class="text-xs text-gray-500">${poi.type || ''} ${poi.address ? '| ' + poi.address.substring(0, 30) : ''}</div>
+        </div>
+      `).join('');
+      
+      suggestionsDiv.classList.remove('hidden');
+    }
+    
+    // 选择景点建议
+    function selectActivitySuggestion(name) {
+      document.getElementById('activityName').value = name;
+      document.getElementById('activitySuggestions').classList.add('hidden');
+      activitySuggestionsData = [];
+    }
+    
+    // 显示景点建议（获取焦点时）
+    function showActivitySuggestions() {
+      const type = document.getElementById('activityType').value;
+      const keyword = document.getElementById('activityName').value.trim();
+      
+      if (type === 'attraction' && keyword && activitySuggestionsData.length > 0) {
+        document.getElementById('activitySuggestions').classList.remove('hidden');
+      }
+    }
+    
+    // 关闭活动弹窗
+    function closeActivityModal() {
+      document.getElementById('activityModal').classList.add('hidden');
+    }
+    
+    // 保存活动
+    async function saveActivity() {
+      const name = document.getElementById('activityName').value.trim();
+      const type = document.getElementById('activityType').value;
+      const startTime = document.getElementById('startTime').value;
+      const endTime = document.getElementById('endTime').value;
+      const description = document.getElementById('activityDescription').value.trim();
+      
+      if (!name) {
+        alert('请输入活动名称');
+        return;
+      }
+      
+      try {
+        // 获取当前选中的天数
+        const selectedDay = parseInt(document.getElementById('daySelector').value);
+        
+        // 获取当前路线数据
+        const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
+        const route = await routeResponse.json();
+        const dailyItinerary = JSON.parse(route.dailyItinerary);
+        
+        // 找到当前天数的数据
+        const dayIndex = dailyItinerary.findIndex(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+        if (dayIndex === -1) {
+          alert('找不到当前天数的数据');
+          return;
+        }
+        
+        // 构造新活动字符串
+        let activityStr = `${startTime}-${endTime} `;
+        if (type === 'meal') {
+          activityStr += `餐饮：${name}`;
+        } else if (type === 'attraction') {
+          activityStr += `景点：${name}`;
+        } else {
+          activityStr += name;
+        }
+        if (description) {
+          activityStr += ` (备注：${description})`;
+        }
+        
+        // 添加到当前天数的activities
+        if (!dailyItinerary[dayIndex].activities) {
+          dailyItinerary[dayIndex].activities = [];
+        }
+        dailyItinerary[dayIndex].activities.push(activityStr);
+        
+        // 按时间排序
+        dailyItinerary[dayIndex].activities.sort((a, b) => {
+          const timeA = a.match(/^(\d{2}:\d{2})/);
+          const timeB = b.match(/^(\d{2}:\d{2})/);
+          if (timeA && timeB) {
+            return timeA[1].localeCompare(timeB[1]);
+          }
+          return 0;
+        });
+        
+        // 更新路线数据
+        route.dailyItinerary = JSON.stringify(dailyItinerary);
+        
+        // 保存到后端
+        const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(route)
+        });
+        
+        if (saveResponse.ok) {
+          alert('活动添加成功！');
+          closeActivityModal();
+          // 重新加载当前天数的数据
+          currentRouteData = route;
+          await loadDayAttractions();
+        } else {
+          alert('保存失败，请重试');
+        }
+      } catch (error) {
+        console.error('Error saving activity:', error);
+        alert('保存失败：' + error.message);
+      }
+    }
+    
+    // 删除活动
+    async function deleteAttraction(activityIndex) {
+      if (!confirm('确定要删除这个活动吗？')) {
+        return;
+      }
+      
+      try {
+        const selectedDay = parseInt(document.getElementById('daySelector').value);
+        
+        // 获取当前路线数据
+        const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
+        const route = await routeResponse.json();
+        const dailyItinerary = JSON.parse(route.dailyItinerary);
+        
+        // 找到当前天数的数据
+        const dayIndex = dailyItinerary.findIndex(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+        if (dayIndex === -1 || !dailyItinerary[dayIndex].activities) {
+          alert('找不到活动数据');
+          return;
+        }
+        
+        // 删除指定的活动
+        dailyItinerary[dayIndex].activities.splice(activityIndex, 1);
+        
+        // 更新路线数据
+        route.dailyItinerary = JSON.stringify(dailyItinerary);
+        
+        // 保存到后端
+        const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(route)
+        });
+        
+        if (saveResponse.ok) {
+          alert('删除成功！');
+          // 重新加载当前天数的数据
+          currentRouteData = route;
+          await loadDayAttractions();
+        } else {
+          alert('删除失败，请重试');
+        }
+      } catch (error) {
+        console.error('Error deleting activity:', error);
+        alert('删除失败：' + error.message);
+      }
+    }
+
+    // 初始化
+    async function init() {
+      console.log('=== Initializing collaboration page ===');
+      // 已移除：renderDailyTimeline(); renderFlowChart();
+      
+      try {
+        // 加载项目信息
+        console.log('Step 1: Loading project info...');
+        await loadProjectInfo();
+        console.log('Step 1: Project info loaded');
+      } catch (error) {
+        console.error('Step 1 failed:', error);
+      }
+      
+      try {
+        // 加载天数选项和景点列表
+        console.log('Step 2: Loading day options and attractions...');
+        await loadDayOptions();
+        console.log('Step 2: Day options loaded');
+      } catch (error) {
+        console.error('Step 2 failed:', error);
+        showNoRouteMessage();
+      }
+      
+      try {
+        // 先处理邀请链接，添加用户到项目
+        console.log('Step 3: Handling invite link...');
+        await handleInviteLink();
+        console.log('Step 3: Invite link handled');
+      } catch (error) {
+        console.error('Step 3 failed:', error);
+      }
+      
+      try {
+        // 然后加载参与者和聊天消息
+        console.log('Step 4: Loading participants...');
+        await loadProjectParticipants();
+        console.log('Step 4: Participants loaded');
+      } catch (error) {
+        console.error('Step 4 failed:', error);
+      }
+      
+      try {
+        console.log('Step 5: Loading chat messages...');
+        await loadChatMessages();
+        console.log('Step 5: Chat messages loaded');
+      } catch (error) {
+        console.error('Step 5 failed:', error);
+      }
+      
+      // 每3秒轮询一次新消息
+      console.log('Setting up message polling...');
+      setInterval(pollNewMessages, 3000);
+      
+      // 添加点击外部隐藏景点建议的事件监听
+      document.addEventListener('click', function(e) {
+        const suggestionsDiv = document.getElementById('activitySuggestions');
+        const nameInput = document.getElementById('activityName');
+        
+        if (suggestionsDiv && nameInput && 
+            !suggestionsDiv.contains(e.target) && 
+            e.target !== nameInput) {
+          suggestionsDiv.classList.add('hidden');
+        }
+      });
+      
+      console.log('=== Initialization complete ===');
+    }
+    
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享行程 - 途点儿啥旅行规划平台</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        .share-container {
+            max-width: 800px;
+            margin: 40px auto;
+        }
+        
+        .preview-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        
+        .preview-header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            margin-bottom: 30px;
+        }
+        
+        .preview-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .preview-info {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .preview-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .day-preview {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .activity-preview {
+            padding: 10px;
+            border-left: 3px solid #667eea;
+            margin-bottom: 10px;
+            background: white;
+        }
+        
+        .share-options {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+        }
+        
+        .share-link {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .share-link input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/index.html" class="navbar-brand" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                <div style="background: #3b82f6; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6; line-height: 1.2;">途点儿啥</div>
+                    <div style="font-size: 0.75rem; color: #6b7280;">让旅途不糊涂</div>
+                </div>
+            </a>
+            <div class="navbar-menu">
+                <a href="#" onclick="history.back(); return false;">返回</a>
+                <a href="/index.html">返回首页</a>
+                <a href="#" onclick="auth.logout(); return false;">退出登录</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="share-container">
+        <h2 style="margin-bottom: 20px;">分享行程</h2>
+        
+        <div class="preview-panel" id="pdfPreview">
+            <div class="preview-header">
+                <div class="preview-title" id="projectTitle">行程名称</div>
+                <div class="preview-info" id="projectInfo"></div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="section-title">📅 行程安排</div>
+                <div id="activitiesPreview"></div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="section-title">💰 预算明细</div>
+                <div id="budgetPreview"></div>
+            </div>
+        </div>
+        
+        <div class="share-options">
+            <h3>分享选项</h3>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-primary" onclick="generatePDF()">
+                    📄 生成PDF文档
+                </button>
+                <button class="btn btn-success" onclick="generateShareLink()" style="margin-left: 10px;">
+                    🔗 生成分享链接
+                </button>
+            </div>
+            
+            <div id="shareLinkContainer" class="hidden">
+                <label class="form-label">分享链接</label>
+                <div class="share-link">
+                    <input type="text" id="shareLink" readonly>
+                    <button class="btn btn-primary" onclick="copyShareLink()">复制链接</button>
+                </div>
+                <small style="color: #999; display: block; margin-top: 10px;">
+                    链接有效期：30天
+                </small>
+            </div>
+            
+            <div id="pdfLinkContainer" class="hidden" style="margin-top: 20px;">
+                <label class="form-label">PDF下载</label>
+                <div class="share-link">
+                    <input type="text" id="pdfLink" readonly>
+                    <button class="btn btn-success" onclick="downloadPDF()">下载PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/common.js"></script>
+    <script>
+        auth.checkAuth();
+        const currentUser = auth.getUser();
+        const projectId = getQueryParam('id');
+        
+        let project = null;
+        let activities = [];
+        let budget = null;
+        
+        if (!projectId) {
+            showError('项目ID不存在');
+            setTimeout(() => navigate('/index.html'), 2000);
+        }
+        
+        // 加载项目数据
+        async function loadProject() {
+            try {
+                const projectResult = await get(`/travel-projects/${projectId}`);
+                if (projectResult.success) {
+                    project = projectResult.data;
+                    document.getElementById('projectTitle').textContent = project.projectName;
+                    document.getElementById('projectInfo').textContent = 
+                        `${project.destination} · ${project.days}天`;
+                }
+                
+                const activitiesResult = await get(`/activity-schedules/project/${projectId}/ordered`);
+                if (activitiesResult.success) {
+                    activities = activitiesResult.data;
+                }
+                
+                const budgetResult = await get(`/budgets/project/${projectId}`);
+                if (budgetResult.success) {
+                    budget = budgetResult.data;
+                }
+                
+                renderPreview();
+            } catch (error) {
+                console.error('加载项目错误:', error);
+                showError('加载失败');
+            }
+        }
+        
+        // 渲染预览
+        function renderPreview() {
+            // 渲染活动
+            const dayGroups = {};
+            activities.forEach(activity => {
+                const day = activity.dayNumber || 1;
+                if (!dayGroups[day]) dayGroups[day] = [];
+                dayGroups[day].push(activity);
+            });
+            
+            document.getElementById('activitiesPreview').innerHTML = 
+                Object.keys(dayGroups).sort((a, b) => a - b).map(day => `
+                    <div class="day-preview">
+                        <strong style="font-size: 18px; color: #667eea;">第${day}天</strong>
+                        <div style="margin-top: 15px;">
+                            ${dayGroups[day].map(activity => `
+                                <div class="activity-preview">
+                                    <div style="font-weight: bold;">${activity.activityName}</div>
+                                    ${activity.location ? `<div style="color: #666; font-size: 14px;">📍 ${activity.location}</div>` : ''}
+                                    ${activity.budget ? `<div style="color: #28a745; font-size: 14px;">💰 ${formatMoney(activity.budget)}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('') || '<p style="color: #999;">暂无活动安排</p>';
+            
+            // 渲染预算
+            if (budget) {
+                document.getElementById('budgetPreview').innerHTML = `
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center;">
+                            <div>
+                                <div style="color: #666; margin-bottom: 5px;">总预算</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #667eea;">
+                                    ${formatMoney(budget.totalBudget)}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="color: #666; margin-bottom: 5px;">已使用</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #dc3545;">
+                                    ${formatMoney(budget.usedBudget)}
+                                </div>
+                            </div>
+                            <div>
+                                <div style="color: #666; margin-bottom: 5px;">剩余</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #28a745;">
+                                    ${formatMoney(budget.remainingBudget)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                document.getElementById('budgetPreview').innerHTML = 
+                    '<p style="color: #999;">暂无预算信息</p>';
+            }
+        }
+        
+        // 生成PDF
+        async function generatePDF() {
+            try {
+                // 模拟生成PDF（实际应该调用后端PDF生成服务）
+                const pdfUrl = `${window.location.origin}/pdfs/${projectId}_${Date.now()}.pdf`;
+                
+                // 保存分享文档记录
+                await post('/shared-documents', {
+                    projectId,
+                    documentUrl: pdfUrl,
+                    format: 'PDF',
+                    generatedTime: new Date().toISOString(),
+                    shareLink: pdfUrl,
+                    creatorId: currentUser.id
+                });
+                
+                document.getElementById('pdfLink').value = pdfUrl;
+                document.getElementById('pdfLinkContainer').classList.remove('hidden');
+                
+                showSuccess('PDF生成成功！');
+            } catch (error) {
+                console.error('生成PDF错误:', error);
+                showError('生成失败，请稍后重试');
+            }
+        }
+        
+        // 生成分享链接
+        async function generateShareLink() {
+            try {
+                const shareLink = `${window.location.origin}/view-project.html?id=${projectId}&token=${Date.now()}`;
+                
+                // 保存分享文档记录
+                await post('/shared-documents', {
+                    projectId,
+                    format: 'LINK',
+                    generatedTime: new Date().toISOString(),
+                    shareLink,
+                    creatorId: currentUser.id
+                });
+                
+                document.getElementById('shareLink').value = shareLink;
+                document.getElementById('shareLinkContainer').classList.remove('hidden');
+                
+                showSuccess('分享链接生成成功！');
+            } catch (error) {
+                console.error('生成分享链接错误:', error);
+                showError('生成失败，请稍后重试');
+            }
+        }
+        
+        // 复制分享链接
+        function copyShareLink() {
+            const input = document.getElementById('shareLink');
+            input.select();
+            document.execCommand('copy');
+            showSuccess('链接已复制到剪贴板');
+        }
+        
+        // 下载PDF
+        function downloadPDF() {
+            const pdfUrl = document.getElementById('pdfLink').value;
+            showSuccess('PDF下载功能需要后端支持，目前仅模拟生成链接');
+            // 实际应该：window.open(pdfUrl, '_blank');
+        }
+        
+        // 页面加载时加载项目
+        loadProject();
+    </script>
+</body>
+</html>

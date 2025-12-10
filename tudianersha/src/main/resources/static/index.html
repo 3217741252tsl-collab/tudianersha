@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>途点儿啥 - AI旅行规划平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <style>
+    body {
+      background-image: linear-gradient(to bottom, #f0f9ff, #ffffff);
+    }
+    .card-hover {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    .status-badge {
+      border-radius: 12px;
+      padding: 2px 12px;
+      font-size: 0.75rem;
+    }
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, #dbeafe, transparent);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans">
+  <!-- 导航栏 -->
+  <header class="bg-white shadow-sm fixed w-full z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <div class="bg-blue-500 w-10 h-10 rounded-lg flex items-center justify-center">
+          <iconify-icon class="text-white text-2xl" icon="mdi:airplane"></iconify-icon>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-blue-500">途点儿啥</h1>
+          <p class="text-xs text-gray-500">让旅途不糊涂</p>
+        </div>
+      </div>
+      <nav class="flex space-x-8">
+        <a class="font-medium text-gray-700 hover:text-blue-500 transition-colors cursor-pointer" id="createNewBtn">创建新项目</a>
+        <a class="font-medium text-gray-700 hover:text-blue-500 transition-colors" href="#">帮助中心</a>
+        <a class="font-medium text-gray-700 hover:text-blue-500 transition-colors" href="#">关于我们</a>
+      </nav>
+      <div class="flex items-center space-x-4">
+        <div class="relative" id="userMenuContainer">
+          <div class="flex items-center cursor-pointer" id="userMenuTrigger">
+            <div class="bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl w-10 h-10 flex items-center justify-center text-white font-bold" id="userAvatar"></div>
+            <p class="ml-2 font-medium" id="userName"></p>
+            <iconify-icon class="ml-1 text-gray-500" icon="mdi:chevron-down"></iconify-icon>
+          </div>
+          <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden" id="userDropdown">
+            <a class="block px-4 py-2 text-gray-700 hover:bg-blue-50" href="#">个人设置</a>
+            <a class="block px-4 py-2 text-gray-700 hover:bg-blue-50 cursor-pointer" id="logoutBtn">退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体内容 -->
+  <main class="pt-28 pb-16 max-w-7xl mx-auto px-6">
+    <!-- 欢迎横幅 -->
+    <section class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-8 mb-12 shadow-sm">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800 mb-2" id="welcomeText">欢迎回来！</h1>
+          <p class="text-lg text-gray-600 max-w-2xl">开始规划你的下一次精彩旅程，与伙伴们一起创建难忘的旅行回忆</p>
+        </div>
+        <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full transition duration-300 flex items-center space-x-2" id="createProjectBtn">
+          <iconify-icon class="text-xl" icon="mdi:plus"></iconify-icon>
+          <span>创建新旅程</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 我创建的旅途 -->
+    <section class="mb-16" id="createdSection">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+          <iconify-icon class="text-blue-500 mr-3" icon="mdi:map-marker-path" width="28"></iconify-icon>
+          我创建的旅途
+        </h2>
+        <a class="text-blue-500 hover:text-blue-700 font-medium flex items-center cursor-pointer" id="viewAllCreated">
+          查看全部
+          <iconify-icon class="ml-1" icon="mdi:chevron-right"></iconify-icon>
+        </a>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="createdProjects">
+        <!-- 项目卡片将动态加载 -->
+      </div>
+      <div class="text-center py-10 text-gray-500" id="noCreatedProjects" style="display:none;">
+        <iconify-icon icon="mdi:folder-open" width="48" class="mb-3 opacity-50"></iconify-icon>
+        <p>暂无创建的项目</p>
+      </div>
+    </section>
+
+    <div class="section-divider my-10"></div>
+
+    <!-- 我编辑的旅途 -->
+    <section class="mb-16" id="editingSection">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+          <iconify-icon class="text-blue-500 mr-3" icon="mdi:pencil" width="28"></iconify-icon>
+          我编辑的旅途
+        </h2>
+        <a class="text-blue-500 hover:text-blue-700 font-medium flex items-center cursor-pointer" id="viewAllEditing">
+          查看全部
+          <iconify-icon class="ml-1" icon="mdi:chevron-right"></iconify-icon>
+        </a>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="editingProjects">
+        <!-- 编辑项目将动态加载 -->
+      </div>
+      <div class="text-center py-10 text-gray-500" id="noEditingProjects" style="display:none;">
+        <iconify-icon icon="mdi:folder-open" width="48" class="mb-3 opacity-50"></iconify-icon>
+        <p>暂无编辑的项目</p>
+      </div>
+    </section>
+
+    <div class="section-divider my-10"></div>
+
+    <!-- 我参与的旅途（查看权限）-->
+    <section id="participatingSection">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+          <iconify-icon class="text-blue-500 mr-3" icon="mdi:account-group" width="28"></iconify-icon>
+          我参与的旅途
+        </h2>
+        <a class="text-blue-500 hover:text-blue-700 font-medium flex items-center cursor-pointer" id="viewAllParticipating">
+          查看全部
+          <iconify-icon class="ml-1" icon="mdi:chevron-right"></iconify-icon>
+        </a>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="participatingProjects">
+        <!-- 参与项目将动态加载 -->
+      </div>
+      <div class="text-center py-10 text-gray-500" id="noParticipatingProjects" style="display:none;">
+        <iconify-icon icon="mdi:folder-open" width="48" class="mb-3 opacity-50"></iconify-icon>
+        <p>暂无参与的项目</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部信息 -->
+  <footer class="bg-gray-50 py-10">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-6 md:mb-0">
+          <div class="flex items-center space-x-2">
+            <div class="bg-blue-500 w-8 h-8 rounded-lg flex items-center justify-center">
+              <iconify-icon class="text-white text-xl" icon="mdi:airplane"></iconify-icon>
+            </div>
+            <h2 class="text-xl font-bold text-blue-500">途点儿啥</h2>
+          </div>
+          <p class="mt-2 text-gray-600">让旅途不糊涂 | 专业的AI旅行规划平台</p>
+        </div>
+        <div class="flex flex-col items-center md:items-end">
+          <p class="text-gray-600">© 2025 途点儿啥 AI旅行规划平台</p>
+          <div class="mt-3 flex space-x-6">
+            <a class="text-gray-500 hover:text-blue-500" href="#">
+              <iconify-icon icon="mdi:wechat" width="24"></iconify-icon>
+            </a>
+            <a class="text-gray-500 hover:text-blue-500" href="#">
+              <iconify-icon icon="mdi:weibo" width="24"></iconify-icon>
+            </a>
+            <a class="text-gray-500 hover:text-blue-500" href="#">
+              <iconify-icon icon="mdi:email" width="24"></iconify-icon>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/common.js"></script>
+  <script>
+    console.log('=== 页面脚本开始执行 ===');
+    
+    // 不要重复声明 API_BASE_URL，它已经在 common.js 中定义了
+    let currentUser = null;
+    let allProjects = [];
+    let allParticipants = [];
+
+    // 检查登录状态
+    console.log('检查登录状态...');
+    if (!auth.isLoggedIn()) {
+      console.log('未登录，跳转到登录页');
+      window.location.href = '/login.html';
+      throw new Error('Not logged in'); // 阻止后续代码执行
+    }
+    
+    console.log('已登录，获取用户信息');
+    currentUser = auth.getUser();
+    console.log('当前用户:', currentUser);
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('=== DOM 加载完成，开始初始化 ===');
+      init();
+    });
+
+    // 初始化页面
+    async function init() {
+      // 显示用户名
+      const userNameEl = document.getElementById('userName');
+      const welcomeTextEl = document.getElementById('welcomeText');
+      const userAvatarEl = document.getElementById('userAvatar');
+      
+      if (userNameEl) userNameEl.textContent = currentUser.username;
+      if (welcomeTextEl) welcomeTextEl.textContent = `欢迎回来，${currentUser.username}！`;
+      if (userAvatarEl) userAvatarEl.textContent = currentUser.username.charAt(0).toUpperCase();
+
+      await loadProjects();
+      
+      // 绑定事件
+      bindEvents();
+    }
+
+    // 绑定所有事件
+    function bindEvents() {
+      console.log('开始绑定事件...');
+      
+      // 用户菜单下拉
+      const userMenuTrigger = document.getElementById('userMenuTrigger');
+      const userDropdown = document.getElementById('userDropdown');
+      
+      if (userMenuTrigger && userDropdown) {
+        userMenuTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          userDropdown.classList.toggle('hidden');
+          console.log('菜单切换:', !userDropdown.classList.contains('hidden'));
+        });
+        
+        // 点击页面其他地方关闭菜单
+        document.addEventListener('click', () => {
+          if (!userDropdown.classList.contains('hidden')) {
+            userDropdown.classList.add('hidden');
+          }
+        });
+      }
+      
+      // 创建新项目
+      const createBtn = document.getElementById('createProjectBtn');
+      const createNavBtn = document.getElementById('createNewBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      
+      if (createBtn) {
+        createBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('点击创建项目按钮');
+          window.location.href = '/create-project.html';
+        });
+        console.log('创建按钮事件已绑定');
+      } else {
+        console.error('找不到创建按钮');
+      }
+      
+      if (createNavBtn) {
+        createNavBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('点击导航栏创建按钮');
+          window.location.href = '/create-project.html';
+        });
+        console.log('导航创建按钮事件已绑定');
+      } else {
+        console.error('找不到导航创建按钮');
+      }
+      
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('点击退出登录');
+          storage.remove('currentUser');
+          window.location.href = '/login.html';
+        });
+        console.log('退出按钮事件已绑定');
+      } else {
+        console.error('找不到退出按钮');
+      }
+      
+      console.log('事件绑定完成！');
+    }
+
+    // 加载项目数据
+    async function loadProjects() {
+      try {
+        const [projectsResult, participantsResult, projectParticipantsResult] = await Promise.all([
+          get('/travel-projects'),
+          get('/travel-participants'),
+          get('/project-participants')
+        ]);
+
+        if (projectsResult.success) {
+          allProjects = projectsResult.data;
+        }
+
+        if (participantsResult.success) {
+          allParticipants = participantsResult.data;
+        }
+        
+        // Also load project-participants for collaboration tracking
+        if (projectParticipantsResult.success) {
+          window.projectParticipants = projectParticipantsResult.data;
+        }
+
+        categorizeProjects();
+      } catch (error) {
+        console.error('加载项目失败:', error);
+      }
+    }
+
+    // 按权限分类项目
+    function categorizeProjects() {
+      const createdProjects = [];
+      const editingProjects = [];
+      const participatingProjects = [];
+
+      allProjects.forEach(project => {
+        const participant = allParticipants.find(p => 
+          p.projectId === project.id && p.userId === currentUser.id
+        );
+        
+        // Check if user is in project-participants (for collaboration)
+        const projectParticipant = window.projectParticipants ? 
+          window.projectParticipants.find(p => 
+            p.projectId === project.id && p.userId === currentUser.id
+          ) : null;
+
+        // 创建者
+        if (project.creatorId === currentUser.id) {
+          createdProjects.push(project);
+        }
+        // 编辑者（有编辑权限但不是创建者）
+        else if (participant && (participant.permission === '编辑者' || participant.role === 'EDITOR')) {
+          editingProjects.push(project);
+        }
+        // 参与者（包括所有非创建者的参与情况）
+        else if (participant || projectParticipant) {
+          // Only show if project status is '协作中' or if user has submitted requirements
+          if (project.status === '协作中' || project.status === '进行中') {
+            participatingProjects.push(project);
+          }
+        }
+      });
+
+      renderProjects('createdProjects', createdProjects, 'creator');
+      renderProjects('editingProjects', editingProjects, 'editor');
+      renderProjects('participatingProjects', participatingProjects, 'viewer');
+    }
+
+    // 渲染项目卡片
+    function renderProjects(containerId, projects, type) {
+      const container = document.getElementById(containerId);
+      const emptyId = containerId === 'createdProjects' ? 'noCreatedProjects' : 
+                      containerId === 'editingProjects' ? 'noEditingProjects' : 'noParticipatingProjects';
+      
+      container.innerHTML = '';
+
+      if (projects.length === 0) {
+        document.getElementById(emptyId).style.display = 'block';
+        return;
+      }
+
+      document.getElementById(emptyId).style.display = 'none';
+
+      projects.forEach(project => {
+        const card = createProjectCard(project, type);
+        container.appendChild(card);
+      });
+    }
+
+    // 创建项目卡片
+    function createProjectCard(project, type) {
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-xl shadow-md card-hover overflow-hidden cursor-pointer';
+      
+      const statusMap = {
+        'PLANNING': { text: '进行中', class: 'bg-blue-100 text-blue-700' },
+        'COMPLETED': { text: '已完成', class: 'bg-green-100 text-green-700' },
+        'CANCELLED': { text: '已取消', class: 'bg-gray-100 text-gray-600' }
+      };
+      const status = statusMap[project.status] || statusMap['PLANNING'];
+
+      // 获取项目参与者数量（合并两个表的数据）
+      const travelParticipants = allParticipants.filter(p => p.projectId === project.id);
+      const projectParticipants = window.projectParticipants ? 
+        window.projectParticipants.filter(p => p.projectId === project.id) : [];
+      
+      // 去重：合并两个列表，根据userID去重
+      const allParticipantUserIds = new Set();
+      travelParticipants.forEach(p => allParticipantUserIds.add(p.userId));
+      projectParticipants.forEach(p => allParticipantUserIds.add(p.userId));
+      const participantCount = allParticipantUserIds.size;
+
+      if (type === 'creator') {
+        card.innerHTML = `
+          <div class="bg-gradient-to-br from-blue-400 to-purple-500 h-40 flex items-center justify-center text-white">
+            <iconify-icon icon="mdi:airplane-takeoff" width="64"></iconify-icon>
+          </div>
+          <div class="p-5">
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="text-lg font-bold text-gray-800">${project.projectName}</h3>
+              <div class="flex items-center gap-2">
+                <span class="status-badge ${status.class}">${status.text}</span>
+                <button class="delete-btn text-red-500 hover:text-red-700 transition-colors" title="删除项目" data-project-id="${project.id}" data-project-name="${project.projectName}">
+                  <iconify-icon icon="mdi:delete" width="20"></iconify-icon>
+                </button>
+              </div>
+            </div>
+            <p class="text-gray-500 text-sm mb-4">目的地：${project.destination || '未设置'}</p>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center">
+                <iconify-icon class="text-blue-500 mr-1" icon="mdi:account-multiple"></iconify-icon>
+                <span class="text-gray-600">${participantCount}位参与者</span>
+              </div>
+              <button class="manage-btn text-blue-500 hover:text-blue-700 font-medium" data-project-id="${project.id}">管理旅程</button>
+            </div>
+          </div>
+        `;
+        
+        // 为管理按钮添加事件监听
+        setTimeout(() => {
+          const manageBtn = card.querySelector('.manage-btn');
+          if (manageBtn) {
+            manageBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const projectId = manageBtn.getAttribute('data-project-id');
+              console.log('点击管理项目:', projectId);
+              navigate(`/collaboration.html?id=${projectId}`);
+            });
+          }
+          
+          // 为删除按钮添加事件监听
+          const deleteBtn = card.querySelector('.delete-btn');
+          if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const projectId = deleteBtn.getAttribute('data-project-id');
+              const projectName = deleteBtn.getAttribute('data-project-name');
+              deleteProject(projectId, projectName);
+            });
+          }
+        }, 0);
+      } else {
+        card.innerHTML = `
+          <div class="p-5">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">${project.projectName}</h3>
+            <p class="text-gray-500 text-sm mb-4">目的地：${project.destination || '未设置'}</p>
+            <div class="flex justify-between items-center">
+              <div class="flex items-center">
+                <iconify-icon class="text-blue-500 mr-1" icon="mdi:account-multiple"></iconify-icon>
+                <span class="text-gray-600">${participantCount}位参与者</span>
+              </div>
+              <span class="status-badge ${status.class}">${type === 'editor' ? '正在编辑' : '已参与'}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // 为整个卡片添加点击事件
+      card.addEventListener('click', () => {
+        console.log('点击项目卡片:', project.id);
+        navigate(`/collaboration.html?id=${project.id}`);
+      });
+
+      return card;
+    }
+
+    // 删除项目
+    async function deleteProject(projectId, projectName) {
+      if (!window.confirm(`确定要删除项目「${projectName}」吗？此操作不可恢复！`)) {
+        return;
+      }
+
+      try {
+        console.log('开始删除项目:', projectId);
+        
+        const result = await del(`/travel-projects/${projectId}`);
+        
+        if (result.success) {
+          showToast('项目已成功删除');
+          // 重新加载项目列表
+          await loadProjects();
+        } else {
+          showToast('删除失败，请稍后重试');
+        }
+      } catch (error) {
+        console.error('删除项目错误:', error);
+        showToast('删除失败，请稍后重试');
+      }
+    }
+
+    // 显示提示
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed top-20 right-6 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+  </script>
+</body>
+</html>

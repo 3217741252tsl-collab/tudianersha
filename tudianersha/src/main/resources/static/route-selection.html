@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI路线方案 - 途点儿啥旅行规划</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E88E5',
+            secondary: '#64B5F6',
+            accent: '#0D47A1',
+            light: '#E3F2FD',
+          },
+        },
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .card-hover {
+        @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+      }
+      .selected-card {
+        @apply border-primary ring-2 ring-primary/20;
+      }
+      .btn-effect {
+        @apply transition-all duration-300 hover:shadow-md active:translate-y-0.5;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+  <header class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <div style="background: #3b82f6; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold" style="color: #3b82f6; line-height: 1.2;">途点儿啥</h1>
+          <p style="font-size: 0.65rem; color: #6b7280;">让旅途不糊涂</p>
+        </div>
+      </div>
+      <nav class="hidden md:flex items-center space-x-6">
+        <a href="/index.html" class="text-gray-600 hover:text-primary transition-colors">我的行程</a>
+        <a href="#" class="text-primary font-medium border-b-2 border-primary pb-1">AI路线</a>
+      </nav>
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold" id="userAvatar"></div>
+        <span class="hidden md:inline text-sm font-medium" id="userName"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8">
+    <div class="mb-8 bg-white p-4 rounded-lg shadow-sm border-l-4 border-primary">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800" id="projectTitle">加载中...</h2>
+          <p class="text-gray-500 mt-1" id="projectInfo">
+            <i class="fa fa-spinner fa-spin text-primary mr-1"></i> 正在加载...
+          </p>
+        </div>
+        <a href="/create-project.html" class="mt-3 md:mt-0 text-gray-600 hover:text-primary inline-flex items-center">
+          <i class="fa fa-arrow-left mr-1"></i> 返回修改需求
+        </a>
+      </div>
+    </div>
+
+    <div class="text-center mb-8">
+      <h3 class="text-xl md:text-2xl font-bold text-gray-800 mb-2">AI为您生成3条路线方案</h3>
+      <p class="text-gray-500 max-w-2xl mx-auto">基于您的需求，我们推荐以下路线方案。选择后可进入协作界面与伙伴共同优化</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10" id="routesContainer"></div>
+
+    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mt-8">
+      <button id="regenerateBtn" class="bg-white border border-gray-300 text-gray-700 font-medium px-6 py-3 rounded-lg btn-effect flex items-center">
+        <i class="fa fa-sync mr-2 text-primary"></i> 重新生成方案
+      </button>
+      <button id="confirmBtn" class="bg-primary hover:bg-accent text-white font-medium px-8 py-3 rounded-lg btn-effect flex items-center">
+        <i class="fa fa-check mr-2"></i> 确认选中方案，进入协作
+      </button>
+    </div>
+  </main>
+
+  <div id="detailModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto m-4 transform scale-95 transition-transform duration-300" id="modalContent">
+      <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+        <h3 class="text-xl font-bold" id="modalTitle">路线方案详情</h3>
+        <button id="closeModal" class="text-gray-500 hover:text-gray-700 text-xl">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6" id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-6 right-6 bg-accent text-white px-4 py-2 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center">
+    <i class="fa fa-check-circle mr-2"></i>
+    <span id="toastText">操作成功</span>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    if (!auth.isLoggedIn()) {
+      window.location.href = '/login.html';
+      throw new Error('Not logged in');
+    }
+
+    const currentUser = auth.getUser();
+    const projectId = getQueryParam('id');
+    let selectedRouteId = null;
+    let aiRoutes = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+    });
+
+    async function init() {
+      document.getElementById('userName').textContent = currentUser.username;
+      document.getElementById('userAvatar').textContent = currentUser.username.charAt(0).toUpperCase();
+
+      if (!projectId) {
+        showToast('缺少项目ID');
+        setTimeout(() => window.location.href = '/index.html', 1500);
+        return;
+      }
+
+      await loadProject();
+      await loadAIGeneratedRoutes();
+      bindEvents();
+    }
+
+    async function loadProject() {
+      try {
+        const result = await get(`/travel-projects/${projectId}`);
+        if (result.success) {
+          displayProjectInfo(result.data);
+        }
+      } catch (error) {
+        console.error('加载项目失败:', error);
+      }
+    }
+
+    function displayProjectInfo(project) {
+      document.getElementById('projectTitle').textContent = `${project.projectName} · AI路线方案`;
+      document.getElementById('projectInfo').innerHTML = `
+        <i class="fa fa-map-marker text-primary mr-1"></i> 目的地：${project.destination || '未设置'}
+        <span class="mx-2">|</span>
+        <i class="fa fa-calendar text-primary mr-1"></i> ${project.days || 0}天
+        <span class="mx-2">|</span>
+        <i class="fa fa-clock-o text-primary mr-1"></i> ${project.startDate || ''} 至 ${project.endDate || ''}
+      `;
+    }
+
+    async function loadAIGeneratedRoutes() {
+      try {
+        const response = await fetch(`/api/ai-generated-routes/project/${projectId}`);
+        
+        if (!response.ok) {
+          throw new Error('加载AI路线失败');
+        }
+        
+        aiRoutes = await response.json();
+        
+        console.log('Loaded AI routes:', aiRoutes); // Debug log
+        
+        if (!aiRoutes || aiRoutes.length === 0) {
+          document.getElementById('routesContainer').innerHTML = `
+            <div class="col-span-full text-center py-12">
+              <i class="fa fa-exclamation-circle text-gray-400 text-5xl mb-4"></i>
+              <p class="text-gray-500 mb-4">暂无AI生成的路线方案</p>
+              <button onclick="window.location.href='/participants-status.html?id=${projectId}'" 
+                      class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-accent">
+                返回重新生成
+              </button>
+            </div>
+          `;
+          return;
+        }
+        
+        displayRoutes(aiRoutes);
+        
+      } catch (error) {
+        console.error('加载AI路线失败:', error);
+        showToast('加载AI路线失败');
+      }
+    }
+
+    function displayRoutes(routes) {
+      const container = document.getElementById('routesContainer');
+      
+      // 详细日志
+      routes.forEach((route, index) => {
+        console.log(`Route ${index + 1}:`, {
+          id: route.id,
+          title: route.routeTitle,
+          hasDailyItinerary: !!route.dailyItinerary,
+          dailyItineraryLength: route.dailyItinerary ? route.dailyItinerary.length : 0,
+          dailyItineraryPreview: route.dailyItinerary ? route.dailyItinerary.substring(0, 100) : 'null',
+          coverImageUrl: route.coverImageUrl
+        });
+      });
+      
+      container.innerHTML = routes.map((route, index) => createRouteCard(route, index)).join('');
+      
+      // 默认选中第一个
+      if (routes.length > 0) {
+        selectPlan(routes[0].id, 0);
+      }
+      
+      attachCardEvents();
+    }
+
+    function createRouteCard(route, index) {
+      const isSelected = index === 0;
+      
+      // 处理封面图片：如果是多张图片（逗号分隔），则显示为网格拼接图
+      let imageHtml = '';
+      const defaultImage = `https://picsum.photos/id/${1036 + index * 3}/600/300`;
+      
+      if (route.coverImageUrl && route.coverImageUrl.includes(',')) {
+        // 多张图片，显示为2x3网格拼接图
+        const imageUrls = route.coverImageUrl.split(',').slice(0, 6); // 最多6张
+        imageHtml = `
+          <div class="grid grid-cols-3 grid-rows-2 gap-0 h-48">
+            ${imageUrls.map((url, i) => `
+              <img src="${url}" alt="景点${i+1}" class="w-full h-full object-cover" 
+                   onerror="this.src='https://picsum.photos/200/150?random=${index * 10 + i}'">
+            `).join('')}
+            ${imageUrls.length < 6 ? Array(6 - imageUrls.length).fill(0).map((_, i) => `
+              <img src="https://picsum.photos/200/150?random=${index * 10 + imageUrls.length + i}" 
+                   alt="景点占位" class="w-full h-full object-cover">
+            `).join('') : ''}
+          </div>
+        `;
+      } else {
+        // 单张图片
+        const imageUrl = route.coverImageUrl || defaultImage;
+        imageHtml = `
+          <img src="${imageUrl}" alt="${route.routeTitle || '路线' + (index + 1)}" class="w-full h-48 object-cover" 
+               onerror="this.src='https://picsum.photos/600/300?random=${index}'">
+        `;
+      }
+      
+      return `
+        <div class="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden card-hover ${isSelected ? 'selected-card' : ''}" 
+             id="plan${route.id}" data-route-id="${route.id}">
+          <div class="relative">
+            ${imageHtml}
+            <div class="absolute top-3 left-3 bg-primary text-white text-xs font-medium px-2 py-1 rounded">
+              推荐指数 ${route.recommendationScore || 85}%
+            </div>
+            <div class="absolute top-3 right-3">
+              <input type="radio" name="planSelect" id="select${route.id}" class="w-5 h-5 accent-primary" ${isSelected ? 'checked' : ''}>
+            </div>
+          </div>
+          <div class="p-5">
+            <div class="flex justify-between items-start mb-3">
+              <h4 class="text-lg font-semibold">${route.routeTitle || '路线方案' + (index + 1)}</h4>
+              <span class="bg-light text-primary text-xs px-2 py-1 rounded-full">${route.routeTag || 'AI生成'}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-sm text-gray-600 mb-4">
+              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
+                <i class="fa fa-camera text-primary mb-1"></i>
+                <span>${route.attractionsCount || 10}个景点</span>
+              </div>
+              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
+                <i class="fa fa-cutlery text-primary mb-1"></i>
+                <span>${route.restaurantsCount || 6}家餐厅</span>
+              </div>
+              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
+                <i class="fa fa-bus text-primary mb-1"></i>
+                <span>${route.transportMode || '公共交通'}</span>
+              </div>
+            </div>
+            <div class="border-t border-gray-100 pt-3">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-gray-500 text-sm">总预算</span>
+                <span class="font-semibold">¥${route.totalBudget || 5000}</span>
+              </div>
+              <div class="flex space-x-2">
+                <button class="detail-btn flex-1 text-sm bg-white border border-primary text-primary hover:bg-light py-2 rounded-md btn-effect" 
+                        data-route-id="${route.id}">
+                  查看详情
+                </button>
+                <button class="select-btn flex-1 text-sm bg-primary hover:bg-accent text-white py-2 rounded-md btn-effect" 
+                        data-route-id="${route.id}" data-index="${index}">
+                  选择此方案
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function attachCardEvents() {
+      document.querySelectorAll('.select-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const routeId = parseInt(btn.getAttribute('data-route-id'));
+          const index = parseInt(btn.getAttribute('data-index'));
+          selectPlan(routeId, index);
+        });
+      });
+
+      document.querySelectorAll('.detail-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const routeId = parseInt(btn.getAttribute('data-route-id'));
+          showDetail(routeId);
+        });
+      });
+
+      document.querySelectorAll('[name="planSelect"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+          if (this.checked) {
+            const routeId = parseInt(this.id.replace('select', ''));
+            const index = aiRoutes.findIndex(r => r.id === routeId);
+            selectPlan(routeId, index);
+          }
+        });
+      });
+    }
+
+    function selectPlan(routeId, index) {
+      document.querySelectorAll('[id^="plan"]').forEach(card => card.classList.remove('selected-card'));
+      const planCard = document.getElementById(`plan${routeId}`);
+      if (planCard) {
+        planCard.classList.add('selected-card');
+      }
+      document.getElementById(`select${routeId}`).checked = true;
+      selectedRouteId = routeId;
+    }
+
+    function showDetail(routeId) {
+      const route = aiRoutes.find(r => r.id === routeId);
+      if (!route) return;
+      
+      document.getElementById('modalTitle').textContent = `${route.routeTitle || '路线方案'} - 详细信息`;
+      
+      let detailHTML = '';
+      
+      // 基本信息
+      detailHTML += `
+        <div class="mb-6">
+          <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+            <i class="fa fa-info-circle text-primary mr-2"></i>
+            路线特色
+          </h4>
+          <p class="text-gray-600">${route.routeTag || 'AI生成的旅行路线'}</p>
+        </div>
+      `;
+      
+      // 预算明细
+      detailHTML += `
+        <div class="mb-6">
+          <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+            <i class="fa fa-money text-primary mr-2"></i>
+            预算明细
+          </h4>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="bg-gray-50 p-3 rounded">
+              <span class="text-gray-500">景点门票</span>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.3)}</p>
+            </div>
+            <div class="bg-gray-50 p-3 rounded">
+              <span class="text-gray-500">餐饮费用</span>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.25)}</p>
+            </div>
+            <div class="bg-gray-50 p-3 rounded">
+              <span class="text-gray-500">住宿费用</span>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.35)}</p>
+            </div>
+            <div class="bg-gray-50 p-3 rounded">
+              <span class="text-gray-500">交通费用</span>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.1)}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // 每日行程 - 可视化展示
+      if (route.dailyItinerary && route.dailyItinerary !== 'null' && route.dailyItinerary.trim() !== '') {
+        try {
+          console.log('Daily itinerary:', route.dailyItinerary); // Debug log
+          const dailyItinerary = JSON.parse(route.dailyItinerary);
+          detailHTML += `
+            <div class="mb-6">
+              <h4 class="font-semibold text-gray-800 mb-4 flex items-center text-lg">
+                <i class="fa fa-calendar-check-o text-primary mr-2"></i>
+                每日行程安排
+              </h4>
+          `;
+          
+          dailyItinerary.forEach((day, dayIndex) => {
+            const dayColors = ['bg-blue-50 border-blue-200', 'bg-green-50 border-green-200', 'bg-purple-50 border-purple-200'];
+            const dayIconColors = ['text-blue-500', 'text-green-500', 'text-purple-500'];
+            const colorClass = dayColors[dayIndex % dayColors.length];
+            const iconColor = dayIconColors[dayIndex % dayIconColors.length];
+            
+            detailHTML += `
+              <div class="mb-4 ${colorClass} border-l-4 p-4 rounded-lg">
+                <h5 class="font-semibold ${iconColor} mb-3 flex items-center">
+                  <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white mr-2">
+                    <i class="fa fa-calendar"></i>
+                  </span>
+                  第${day.day}天
+                </h5>
+                <div class="space-y-2">
+            `;
+            
+            if (day.activities && Array.isArray(day.activities)) {
+              day.activities.forEach((activity, actIndex) => {
+                // 提取时间和内容
+                const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
+                let timeStr = '';
+                let contentStr = activity;
+                let timeIcon = 'fa-clock-o';
+                
+                if (timeMatch) {
+                  timeStr = timeMatch[1];
+                  contentStr = timeMatch[2];
+                  
+                  // 根据时间选择图标
+                  const hour = parseInt(timeStr.split(':')[0]);
+                  if (hour >= 6 && hour < 12) {
+                    timeIcon = 'fa-sun-o';  // 早上/上午
+                  } else if (hour >= 12 && hour < 18) {
+                    timeIcon = 'fa-cloud';  // 下午
+                  } else {
+                    timeIcon = 'fa-moon-o'; // 晚上
+                  }
+                }
+                
+                detailHTML += `
+                  <div class="flex items-start bg-white p-3 rounded shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex-shrink-0 mr-3">
+                      <i class="fa ${timeIcon} ${iconColor} text-lg"></i>
+                    </div>
+                    <div class="flex-1">
+                      ${timeStr ? `<div class="text-xs ${iconColor} font-semibold mb-1">${timeStr}</div>` : ''}
+                      <div class="text-gray-700">${contentStr}</div>
+                    </div>
+                  </div>
+                `;
+              });
+            }
+            detailHTML += `</div></div>`;
+          });
+          
+          detailHTML += `</div>`;
+        } catch (e) {
+          console.error('解析行程失败:', e);
+        }
+      }
+      
+      // 如果没有结构化数据，显示AI原始响应（但美化显示）
+      if (route.routeContent && (!route.dailyItinerary || route.dailyItinerary === 'null' || route.dailyItinerary.trim() === '')) {
+        console.log('Showing raw content, dailyItinerary:', route.dailyItinerary); // Debug log
+        detailHTML += `
+          <div class="mb-6">
+            <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+              <i class="fa fa-lightbulb-o text-primary mr-2"></i>
+              AI智能推荐
+            </h4>
+            <div class="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
+              <div class="text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto" style="line-height: 1.8;">${formatAIContent(route.routeContent)}</div>
+            </div>
+          </div>
+        `;
+      }
+      
+      document.getElementById('modalBody').innerHTML = detailHTML;
+      
+      const modal = document.getElementById('detailModal');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => document.getElementById('modalContent').classList.replace('scale-95', 'scale-100'), 10);
+    }
+
+    function bindEvents() {
+      document.getElementById('closeModal').addEventListener('click', () => {
+        document.getElementById('modalContent').classList.replace('scale-100', 'scale-95');
+        setTimeout(() => document.getElementById('detailModal').classList.add('opacity-0', 'pointer-events-none'), 300);
+      });
+
+      document.getElementById('regenerateBtn').addEventListener('click', async () => {
+        if (!confirm('重新生成将会覆盖当前的路线方案，确认继续？')) {
+          return;
+        }
+        
+        const btn = document.getElementById('regenerateBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> 正在生成...';
+        
+        try {
+          const response = await fetch(`/api/ai-generated-routes/generate/${projectId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showToast('新方案生成成功！');
+            await loadAIGeneratedRoutes();
+          } else {
+            throw new Error(result.message || '生成失败');
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          showToast('生成失败，请稍后再试');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa fa-sync mr-2 text-primary"></i> 重新生成方案';
+        }
+      });
+
+      document.getElementById('confirmBtn').addEventListener('click', async () => {
+        console.log('===== CONFIRM BUTTON CLICKED (NEW VERSION) =====');
+        if (!selectedRouteId) {
+          showToast('请先选择一个路线方案');
+          return;
+        }
+        
+        try {
+          // 先获取当前项目信息
+          console.log('Fetching current project...');
+          const getResponse = await fetch(`/api/travel-projects/${projectId}`);
+          if (!getResponse.ok) {
+            throw new Error('Failed to fetch project');
+          }
+          const project = await getResponse.json();
+          
+          // 更新currentRouteId
+          project.currentRouteId = selectedRouteId;
+          
+          // 保存选中的路线到项目
+          console.log('Saving selected route:', selectedRouteId, 'to project:', projectId);
+          const response = await fetch(`/api/travel-projects/${projectId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(project)
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to save route selection');
+          }
+          
+          console.log('Route selection saved successfully');
+          showToast('正在进入协作界面...');
+          setTimeout(() => window.location.href = `/collaboration.html?id=${projectId}`, 1500);
+        } catch (error) {
+          console.error('Error saving route selection:', error);
+          showToast('保存选择失败，请重试');
+        }
+      });
+    }
+
+    function showToast(text) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+    
+    /**
+     * Format AI content for better display
+     */
+    function formatAIContent(content) {
+      if (!content) return '';
+      
+      // 移除JSON代码块
+      content = content.replace(/```json[\s\S]*?```/g, '');
+      content = content.replace(/```[\s\S]*?```/g, '');
+      
+      // 突出显示标题
+      content = content.replace(/^(#+\s*.+)$/gm, '<strong class="text-primary text-base block my-2">$1</strong>');
+      
+      // 突出显示第几天
+      content = content.replace(/(第\d+天)/g, '<span class="font-semibold text-blue-600">$1</span>');
+      
+      // 突出显示列表项
+      content = content.replace(/^[\d]+\./gm, '<i class="fa fa-circle text-primary" style="font-size: 6px; vertical-align: middle;"></i>');
+      
+      return content;
+    }
+  </script>
+</body>
+</html>
