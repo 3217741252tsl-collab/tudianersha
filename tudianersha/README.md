@@ -196,10 +196,9 @@ tudianersha/
 │   │   ├── login.html                  # 登录页面
 │   │   ├── index.html                  # 主页
 │   │   ├── create-project.html         # 创建项目
-│   │   ├── collaboration.html          # 协作填写
+│   │   ├── collaboration.html          # 协作界面
 │   │   ├── participants-status.html    # 参与者状态
-│   │   ├── route-selection.html        # 路线选择
-│   │   └── share.html                  # 分享页面
+│   │   └── route-selection.html        # 路线选择
 │   ├── application.yml                  # 应用配置
 │   ├── schema.sql                       # 数据库表结构
 │   └── data.sql                         # 初始数据
@@ -286,10 +285,9 @@ amap:
 | 登录/注册 | http://localhost:8010/login.html | 用户登录和注册 |
 | 系统主页 | http://localhost:8010/index.html | 项目列表和管理 |
 | 创建项目 | http://localhost:8010/create-project.html | 创建新的旅行项目 |
-| 协作填写 | http://localhost:8010/collaboration.html | 参与者填写需求 |
+| 协作界面 | http://localhost:8010/collaboration.html | 参与者填写需求、编辑者编辑行程 |
 | 参与者状态 | http://localhost:8010/participants-status.html | 创建者查看填写进度 |
 | 路线选择 | http://localhost:8010/route-selection.html | 查看和选择 AI 生成的路线 |
-| 分享页面 | http://localhost:8010/share.html | 项目分享和邀请 |
 | 健康检查 | http://localhost:8010/api/health | 服务健康状态检查 |
 
 ---
