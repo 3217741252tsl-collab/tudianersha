@@ -43,15 +43,61 @@ public class AiGeneratedRouteController {
     
     @PutMapping("/{id}")
     public ResponseEntity<AiGeneratedRoute> updateAiGeneratedRoute(@PathVariable Long id, @RequestBody AiGeneratedRoute aiGeneratedRouteDetails) {
+        System.out.println("[UPDATE] Updating route ID: " + id);
+        System.out.println("[UPDATE] DailyItinerary received: " + (aiGeneratedRouteDetails.getDailyItinerary() != null ? aiGeneratedRouteDetails.getDailyItinerary().substring(0, Math.min(100, aiGeneratedRouteDetails.getDailyItinerary().length())) + "..." : "null"));
+        
         Optional<AiGeneratedRoute> aiGeneratedRoute = aiGeneratedRouteService.getAiGeneratedRouteById(id);
         if (aiGeneratedRoute.isPresent()) {
             AiGeneratedRoute existingAiGeneratedRoute = aiGeneratedRoute.get();
-            existingAiGeneratedRoute.setProjectId(aiGeneratedRouteDetails.getProjectId());
-            existingAiGeneratedRoute.setRouteContent(aiGeneratedRouteDetails.getRouteContent());
-            existingAiGeneratedRoute.setGeneratedTime(aiGeneratedRouteDetails.getGeneratedTime());
-            existingAiGeneratedRoute.setInterestTags(aiGeneratedRouteDetails.getInterestTags());
+            
+            // 更新提供的字段
+            if (aiGeneratedRouteDetails.getProjectId() != null) {
+                existingAiGeneratedRoute.setProjectId(aiGeneratedRouteDetails.getProjectId());
+            }
+            if (aiGeneratedRouteDetails.getRouteContent() != null) {
+                existingAiGeneratedRoute.setRouteContent(aiGeneratedRouteDetails.getRouteContent());
+            }
+            if (aiGeneratedRouteDetails.getGeneratedTime() != null) {
+                existingAiGeneratedRoute.setGeneratedTime(aiGeneratedRouteDetails.getGeneratedTime());
+            }
+            if (aiGeneratedRouteDetails.getInterestTags() != null) {
+                existingAiGeneratedRoute.setInterestTags(aiGeneratedRouteDetails.getInterestTags());
+            }
+            // 重要：更新 dailyItinerary 字段
+            if (aiGeneratedRouteDetails.getDailyItinerary() != null) {
+                existingAiGeneratedRoute.setDailyItinerary(aiGeneratedRouteDetails.getDailyItinerary());
+                System.out.println("[UPDATE] DailyItinerary updated!");
+            } else {
+                System.out.println("[UPDATE] Warning: DailyItinerary is null, not updating!");
+            }
+            // 同时更新其他字段
+            if (aiGeneratedRouteDetails.getRouteTitle() != null) {
+                existingAiGeneratedRoute.setRouteTitle(aiGeneratedRouteDetails.getRouteTitle());
+            }
+            if (aiGeneratedRouteDetails.getRouteTag() != null) {
+                existingAiGeneratedRoute.setRouteTag(aiGeneratedRouteDetails.getRouteTag());
+            }
+            if (aiGeneratedRouteDetails.getAttractionsCount() != null) {
+                existingAiGeneratedRoute.setAttractionsCount(aiGeneratedRouteDetails.getAttractionsCount());
+            }
+            if (aiGeneratedRouteDetails.getRestaurantsCount() != null) {
+                existingAiGeneratedRoute.setRestaurantsCount(aiGeneratedRouteDetails.getRestaurantsCount());
+            }
+            if (aiGeneratedRouteDetails.getTransportMode() != null) {
+                existingAiGeneratedRoute.setTransportMode(aiGeneratedRouteDetails.getTransportMode());
+            }
+            if (aiGeneratedRouteDetails.getTotalBudget() != null) {
+                existingAiGeneratedRoute.setTotalBudget(aiGeneratedRouteDetails.getTotalBudget());
+            }
+            if (aiGeneratedRouteDetails.getRecommendationScore() != null) {
+                existingAiGeneratedRoute.setRecommendationScore(aiGeneratedRouteDetails.getRecommendationScore());
+            }
+            if (aiGeneratedRouteDetails.getCoverImageUrl() != null) {
+                existingAiGeneratedRoute.setCoverImageUrl(aiGeneratedRouteDetails.getCoverImageUrl());
+            }
             
             AiGeneratedRoute updatedAiGeneratedRoute = aiGeneratedRouteService.saveAiGeneratedRoute(existingAiGeneratedRoute);
+            System.out.println("[UPDATE] Route saved successfully!");
             return new ResponseEntity<>(updatedAiGeneratedRoute, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);

@@ -71,6 +71,12 @@
     .mention-item.selected {
       background-color: #dbeafe;
     }
+    
+    /* 刷新按钮旋转动画 */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -95,6 +101,9 @@
         <button class="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-600" onclick="copyInviteLink()">
           <iconify-icon icon="mdi:share"></iconify-icon>
           <span>邀请</span>
+        </button>
+        <button id="refreshBtn" class="bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-600" onclick="manualRefresh()" title="刷新最新数据">
+          <iconify-icon icon="mdi:refresh"></iconify-icon>
         </button>
         <button onclick="window.location.href='/index.html'" class="text-gray-600 hover:text-gray-900">
           <iconify-icon icon="mdi:close" width="24"></iconify-icon>
@@ -380,6 +389,9 @@
     let currentDayAttractions = []; // 当前天数的景点列表
     let destinationCity = ''; // 项目目的地城市
     let activitySuggestionsData = []; // 活动名称自动补全数据
+    let dailyItinerary = []; // 每日行程数据
+    let autoRefreshInterval = null; // 自动刷新定时器
+    let projectRequirements = []; // 所有用户的需求参数
     
     // 检查projectId是否存在
     if (!projectId) {
@@ -444,12 +456,42 @@
         if (response.ok) {
           const participants = await response.json();
           const currentParticipant = participants.find(p => p.userId === currentUser.id);
-          if (currentParticipant && currentParticipant.permission === 'EDIT') {
+          // 检查 role 字段，不是 permission
+          if (currentParticipant && currentParticipant.role === '编辑者') {
             canEdit = true;
+            console.log('[Permission] 用户具有编辑权限');
+          } else {
+            console.log('[Permission] 用户没有编辑权限, role:', currentParticipant?.role);
           }
         }
       } catch (error) {
         console.error('Error checking permission:', error);
+      }
+    }
+    
+    // 加载项目的所有需求参数
+    async function loadProjectRequirements() {
+      try {
+        const response = await fetch(`/api/requirement-parameters/project/${projectId}/all`);
+        if (response.ok) {
+          projectRequirements = await response.json();
+          console.log('[Requirements] Loaded', projectRequirements.length, 'user requirements');
+          
+          // 为每个需求加载用户信息
+          for (let req of projectRequirements) {
+            try {
+              const userResponse = await fetch(`/api/users/${req.userId}`);
+              if (userResponse.ok) {
+                const apiResult = await userResponse.json();
+                req.userInfo = apiResult.data || apiResult;
+              }
+            } catch (err) {
+              console.error('Error loading user info:', err);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading requirements:', error);
       }
     }
     
@@ -747,6 +789,32 @@
       return content.substring(0, 20).trim();
     }
     
+    // 获取想去该景点的用户列表
+    function getUsersWhoWantAttraction(attractionName) {
+      const users = [];
+      
+      for (let req of projectRequirements) {
+        if (req.wishlist && req.userInfo) {
+          // wishlist 可能是逗号分隔的景点列表
+          const wishlistItems = req.wishlist.split(/[,，]/).map(item => item.trim());
+          
+          // 检查景点名称是否在wishlist中（模糊匹配）
+          const matched = wishlistItems.some(item => {
+            // 去掉空格和特殊字符后比较
+            const cleanItem = item.replace(/[\s【】]/g, '');
+            const cleanAttraction = attractionName.replace(/[\s【】]/g, '');
+            return cleanItem.includes(cleanAttraction) || cleanAttraction.includes(cleanItem);
+          });
+          
+          if (matched) {
+            users.push(req.userInfo.username);
+          }
+        }
+      }
+      
+      return users;
+    }
+    
     // 渲染景点列表
     function renderAttractionsList(attractions) {
       const listContainer = document.getElementById('attractionsList');
@@ -761,25 +829,34 @@
         return;
       }
       
-      listContainer.innerHTML = attractions.map((attr, index) => `
-        <div class="p-3 border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all attraction-item cursor-pointer" 
-             onclick="showAttractionDetail(${index})"
-             data-index="${index}">
-          <div class="flex items-start gap-3">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <iconify-icon icon="mdi:map-marker" class="text-blue-600" width="20"></iconify-icon>
+      listContainer.innerHTML = attractions.map((attr, index) => {
+        // 获取想去该景点的用户
+        const interestedUsers = getUsersWhoWantAttraction(attr.name);
+        const userText = interestedUsers.length > 0 
+          ? `<span class="text-xs text-blue-600 mt-1 block">${interestedUsers.join('、')}想去</span>` 
+          : '';
+        
+        return `
+          <div class="p-3 border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all attraction-item cursor-pointer" 
+               onclick="showAttractionDetail(${index})"
+               data-index="${index}">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <iconify-icon icon="mdi:map-marker" class="text-blue-600" width="20"></iconify-icon>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-gray-800 truncate">${attr.name}</h4>
+                <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                  <iconify-icon icon="mdi:clock-outline" width="12"></iconify-icon>
+                  ${attr.time || '时间未设置'}
+                </p>
+                ${userText}
+              </div>
+              <iconify-icon icon="mdi:chevron-right" class="text-gray-400" width="20"></iconify-icon>
             </div>
-            <div class="flex-1 min-w-0">
-              <h4 class="font-semibold text-gray-800 truncate">${attr.name}</h4>
-              <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                <iconify-icon icon="mdi:clock-outline" width="12"></iconify-icon>
-                ${attr.time || '时间未设置'}
-              </p>
-            </div>
-            <iconify-icon icon="mdi:chevron-right" class="text-gray-400" width="20"></iconify-icon>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
     
     // 渲染路线总览（横向4列网格）
@@ -853,26 +930,38 @@
       });
       
       // 渲染卡片（4列网格）
-      gridContainer.innerHTML = parsedActivities.map((activity, index) => `
-        <div class="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group">
-          ${canEdit ? `
-            <button onclick="event.stopPropagation(); deleteAttraction(${activity.originalIndex})" 
-                    class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
-                    title="删除活动">
-              <iconify-icon icon="mdi:close" width="14"></iconify-icon>
-            </button>
-          ` : ''}
-          <div class="flex flex-col h-full">
-            <div class="flex items-center gap-2 mb-2">
-              <div class="w-8 h-8 ${activity.bgColor} rounded-full flex items-center justify-center flex-shrink-0">
-                <iconify-icon icon="${activity.icon}" class="${activity.textColor}" width="16"></iconify-icon>
+      gridContainer.innerHTML = parsedActivities.map((activity, index) => {
+        // 获取想去该景点的用户（只对景点类型显示）
+        let userWantText = '';
+        if (activity.type === 'attraction') {
+          const interestedUsers = getUsersWhoWantAttraction(activity.name);
+          if (interestedUsers.length > 0) {
+            userWantText = `<p class="text-xs text-blue-600 mt-1">${interestedUsers.join('、')}想去</p>`;
+          }
+        }
+        
+        return `
+          <div class="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group">
+            ${canEdit ? `
+              <button onclick="event.stopPropagation(); deleteAttraction(${activity.originalIndex})" 
+                      class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
+                      title="删除活动">
+                <iconify-icon icon="mdi:close" width="14"></iconify-icon>
+              </button>
+            ` : ''}
+            <div class="flex flex-col h-full">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-8 h-8 ${activity.bgColor} rounded-full flex items-center justify-center flex-shrink-0">
+                  <iconify-icon icon="${activity.icon}" class="${activity.textColor}" width="16"></iconify-icon>
+                </div>
+                <span class="text-xs font-semibold ${activity.textColor}">${activity.time}</span>
               </div>
-              <span class="text-xs font-semibold ${activity.textColor}">${activity.time}</span>
+              <h5 class="text-sm font-medium text-gray-800 line-clamp-2 flex-1">${activity.name}</h5>
+              ${userWantText}
             </div>
-            <h5 class="text-sm font-medium text-gray-800 line-clamp-2 flex-1">${activity.name}</h5>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
     
     // 显示景点详情
@@ -1028,7 +1117,9 @@
             try {
               const userResponse = await fetch(`/api/users/${participant.userId}`);
               if (userResponse.ok) {
-                participant.userInfo = await userResponse.json();
+                const apiResult = await userResponse.json();
+                // 后端返回的是 ApiResponse 格式: {success: true, data: {...}}
+                participant.userInfo = apiResult.data || apiResult;
               }
             } catch (err) {
               console.error('Error loading user info:', err);
@@ -1171,6 +1262,40 @@
         
         // 重新加载参与者列表
         await loadProjectParticipants();
+        
+        // 重新检查当前用户的编辑权限（如果不是创建者）
+        const project = await fetch(`/api/travel-projects/${projectId}`).then(r => r.json());
+        const isCreator = project.creatorId === currentUser.id;
+        
+        if (!isCreator) {
+          // 重置 canEdit 标志
+          canEdit = false;
+          await checkEditPermission();
+          
+          // 根据最新权限更新 UI
+          const addActivityBtn = document.getElementById('addActivityBtn');
+          if (canEdit) {
+            addActivityBtn.classList.remove('hidden');
+            addActivityBtn.style.display = 'flex';
+          } else {
+            addActivityBtn.classList.add('hidden');
+            addActivityBtn.style.display = 'none';
+          }
+          
+          // 重新渲染当前天数的活动（以更新编辑/删除按钮）
+          if (dailyItinerary && dailyItinerary.length > 0) {
+            const selectedDay = parseInt(document.getElementById('daySelector').value);
+            const dayData = dailyItinerary.find(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+            if (dayData && dayData.activities) {
+              renderDayOverview(dayData.activities, selectedDay);
+            }
+          }
+          
+          // 如果获得了编辑权限，提示用户
+          if (canEdit) {
+            alert('🎉 你现在已获得编辑权限，可以修改行程了！');
+          }
+        }
         
       } catch (error) {
         console.error('Error saving permissions:', error);
@@ -1684,10 +1809,10 @@
         // 获取当前路线数据
         const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
         const route = await routeResponse.json();
-        const dailyItinerary = JSON.parse(route.dailyItinerary);
+        const localItinerary = JSON.parse(route.dailyItinerary); // 使用局部变量名
         
         // 找到当前天数的数据
-        const dayIndex = dailyItinerary.findIndex(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+        const dayIndex = localItinerary.findIndex(d => (d.day || localItinerary.indexOf(d) + 1) === selectedDay);
         if (dayIndex === -1) {
           alert('找不到当前天数的数据');
           return;
@@ -1707,13 +1832,13 @@
         }
         
         // 添加到当前天数的activities
-        if (!dailyItinerary[dayIndex].activities) {
-          dailyItinerary[dayIndex].activities = [];
+        if (!localItinerary[dayIndex].activities) {
+          localItinerary[dayIndex].activities = [];
         }
-        dailyItinerary[dayIndex].activities.push(activityStr);
+        localItinerary[dayIndex].activities.push(activityStr);
         
         // 按时间排序
-        dailyItinerary[dayIndex].activities.sort((a, b) => {
+        localItinerary[dayIndex].activities.sort((a, b) => {
           const timeA = a.match(/^(\d{2}:\d{2})/);
           const timeB = b.match(/^(\d{2}:\d{2})/);
           if (timeA && timeB) {
@@ -1723,7 +1848,7 @@
         });
         
         // 更新路线数据
-        route.dailyItinerary = JSON.stringify(dailyItinerary);
+        route.dailyItinerary = JSON.stringify(localItinerary);
         
         // 保存到后端
         const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
@@ -1737,8 +1862,9 @@
         if (saveResponse.ok) {
           alert('活动添加成功！');
           closeActivityModal();
-          // 重新加载当前天数的数据
+          // 更新本地数据
           currentRouteData = route;
+          dailyItinerary = JSON.parse(route.dailyItinerary); // 更新全局变量
           await loadDayAttractions();
         } else {
           alert('保存失败，请重试');
@@ -1761,20 +1887,28 @@
         // 获取当前路线数据
         const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
         const route = await routeResponse.json();
-        const dailyItinerary = JSON.parse(route.dailyItinerary);
+        const localItinerary = JSON.parse(route.dailyItinerary); // 使用局部变量名
         
         // 找到当前天数的数据
-        const dayIndex = dailyItinerary.findIndex(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
-        if (dayIndex === -1 || !dailyItinerary[dayIndex].activities) {
+        const dayIndex = localItinerary.findIndex(d => (d.day || localItinerary.indexOf(d) + 1) === selectedDay);
+        if (dayIndex === -1 || !localItinerary[dayIndex].activities) {
           alert('找不到活动数据');
           return;
         }
         
         // 删除指定的活动
-        dailyItinerary[dayIndex].activities.splice(activityIndex, 1);
+        console.log('[DELETE] Activities before delete:', localItinerary[dayIndex].activities.length);
+        console.log('[DELETE] Deleting activity at index:', activityIndex);
+        console.log('[DELETE] Activity to delete:', localItinerary[dayIndex].activities[activityIndex]);
+        localItinerary[dayIndex].activities.splice(activityIndex, 1);
+        console.log('[DELETE] Activities after delete:', localItinerary[dayIndex].activities.length);
         
         // 更新路线数据
-        route.dailyItinerary = JSON.stringify(dailyItinerary);
+        route.dailyItinerary = JSON.stringify(localItinerary);
+        
+        console.log('[DELETE] Sending update to backend...');
+        console.log('[DELETE] Route ID:', route.id);
+        console.log('[DELETE] Updated dailyItinerary:', route.dailyItinerary.substring(0, 200) + '...');
         
         // 保存到后端
         const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
@@ -1786,11 +1920,15 @@
         });
         
         if (saveResponse.ok) {
+          console.log('[DELETE] Backend response OK');
           alert('删除成功！');
-          // 重新加载当前天数的数据
+          // 更新本地数据
           currentRouteData = route;
+          dailyItinerary = JSON.parse(route.dailyItinerary); // 更新全局变量
+          console.log('[DELETE] Local data updated');
           await loadDayAttractions();
         } else {
+          console.error('[DELETE] Backend response error:', saveResponse.status);
           alert('删除失败，请重试');
         }
       } catch (error) {
@@ -1849,6 +1987,17 @@
         console.error('Step 5 failed:', error);
       }
       
+      try {
+        // 加载项目需求参数（用于显示“xxx想去”）
+        console.log('Step 6: Loading project requirements...');
+        await loadProjectRequirements();
+        console.log('Step 6: Requirements loaded');
+        // 重新渲染景点列表以显示“xxx想去”
+        await loadDayAttractions();
+      } catch (error) {
+        console.error('Step 6 failed:', error);
+      }
+      
       // 每3秒轮询一次新消息
       console.log('Setting up message polling...');
       setInterval(pollNewMessages, 3000);
@@ -1866,6 +2015,85 @@
       });
       
       console.log('=== Initialization complete ===');
+      
+      // 启动自动刷新（每10秒检查一次更新）
+      startAutoRefresh();
+    }
+    
+    // 手动刷新
+    async function manualRefresh() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      const icon = refreshBtn.querySelector('iconify-icon');
+      
+      // 添加旋转动画
+      icon.style.animation = 'spin 1s linear infinite';
+      
+      try {
+        await refreshData();
+        // 显示成功提示
+        const originalBg = refreshBtn.className;
+        refreshBtn.className = refreshBtn.className.replace('bg-green-500', 'bg-blue-500');
+        setTimeout(() => {
+          refreshBtn.className = originalBg;
+        }, 500);
+      } catch (error) {
+        console.error('Manual refresh failed:', error);
+        alert('刷新失败，请重试');
+      } finally {
+        // 停止旋转动画
+        icon.style.animation = '';
+      }
+    }
+    
+    // 刷新数据
+    async function refreshData() {
+      console.log('[Refresh] 刷新数据...');
+      
+      // 重新加载路线数据
+      if (currentRouteData && currentRouteData.id) {
+        const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
+        if (routeResponse.ok) {
+          const route = await routeResponse.json();
+          console.log('[Refresh] Got route from backend, dailyItinerary length:', route.dailyItinerary?.length || 0);
+          currentRouteData = route;
+          dailyItinerary = JSON.parse(route.dailyItinerary);
+          
+          // 显示当前天数的活动数量
+          const selectedDay = parseInt(document.getElementById('daySelector').value);
+          const dayData = dailyItinerary.find(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+          if (dayData && dayData.activities) {
+            console.log('[Refresh] Day', selectedDay, 'activities count:', dayData.activities.length);
+          }
+          
+          // 重新渲染当前天数的数据
+          await loadDayAttractions();
+          
+          console.log('[Refresh] 数据刷新成功');
+        }
+      }
+    }
+    
+    // 启动自动刷新
+    function startAutoRefresh() {
+      // 每10秒刷新一次
+      autoRefreshInterval = setInterval(async () => {
+        try {
+          await refreshData();
+        } catch (error) {
+          console.error('[AutoRefresh] Error:', error);
+        }
+      }, 10000); // 10秒
+      
+      console.log('[AutoRefresh] 自动刷新已启动，间隔：10秒');
+    }
+    
+    // 停止自动刷新
+    function stopAutoRefresh() {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('[AutoRefresh] 自动刷新已停止');
+      }
     }
     
     init();

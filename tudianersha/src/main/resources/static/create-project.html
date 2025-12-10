@@ -1128,17 +1128,22 @@
         
         // 检查表单必填项是否完成
         function checkFormValidity() {
-            // 必填项：目的地、开始时间、结束时间
-            const destinationInput = document.getElementById('destinationInput');
-            const startDateInput = document.getElementById('startDateInput');
-            const endDateInput = document.getElementById('endDateInput');
+            let allFilled = true;
             
-            // 检查所有必填项是否完成
-            const destinationFilled = destinationInput && destinationInput.getAttribute('data-selected') === 'true';
-            const startDateFilled = startDateInput && startDateInput.value.trim() !== '';
-            const endDateFilled = endDateInput && endDateInput.value.trim() !== '';
-            
-            const allFilled = destinationFilled && startDateFilled && endDateFilled;
+            // 如果是创建者，检查必填项：目的地、开始时间、结束时间
+            if (isCreator) {
+                const destinationInput = document.getElementById('destinationInput');
+                const startDateInput = document.getElementById('startDateInput');
+                const endDateInput = document.getElementById('endDateInput');
+                
+                // 检查所有必填项是否完成
+                const destinationFilled = destinationInput && destinationInput.getAttribute('data-selected') === 'true';
+                const startDateFilled = startDateInput && startDateInput.value.trim() !== '';
+                const endDateFilled = endDateInput && endDateInput.value.trim() !== '';
+                
+                allFilled = destinationFilled && startDateFilled && endDateFilled;
+            }
+            // 协作者不需要检查这三个字段，因为是创建者决定的
             
             // 获取提交按钮
             const submitBtn = document.querySelector('button[type="submit"]');
@@ -1336,13 +1341,25 @@
                     
                     // 填充旅行基本信息字段
                     if (project.destination) {
-                        document.getElementById('destinationInput').value = project.destination;
+                        const destInput = document.getElementById('destinationInput');
+                        destInput.value = project.destination;
+                        destInput.readOnly = true;  // 协作者只读
+                        destInput.style.backgroundColor = '#f3f4f6';
+                        destInput.style.cursor = 'not-allowed';
                     }
                     if (project.startDate) {
-                        document.getElementById('startDateInput').value = project.startDate;
+                        const startInput = document.getElementById('startDateInput');
+                        startInput.value = project.startDate;
+                        startInput.readOnly = true;  // 协作者只读
+                        startInput.style.backgroundColor = '#f3f4f6';
+                        startInput.style.cursor = 'not-allowed';
                     }
                     if (project.endDate) {
-                        document.getElementById('endDateInput').value = project.endDate;
+                        const endInput = document.getElementById('endDateInput');
+                        endInput.value = project.endDate;
+                        endInput.readOnly = true;  // 协作者只读
+                        endInput.style.backgroundColor = '#f3f4f6';
+                        endInput.style.cursor = 'not-allowed';
                     }
                     
                     // 尝试加载用户的草稿（如果存在）
@@ -1807,11 +1824,12 @@
                 endDate: endDate       // 添加结束日期
             });
             
-            if (!projectResult.success) {
+            // 后端直接返回项目对象，不需要检查 success 字段
+            if (!projectResult || !projectResult.id) {
                 throw new Error('创建项目失败');
             }
             
-            const projectId = projectResult.data.id;
+            const projectId = projectResult.id;
             currentProjectId = projectId;
             
             // Generate and display share link

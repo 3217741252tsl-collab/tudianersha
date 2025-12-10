@@ -541,8 +541,9 @@
           }
           const project = await getResponse.json();
           
-          // 更新currentRouteId
+          // 更新currentRouteId和状态
           project.currentRouteId = selectedRouteId;
+          project.status = '协作中';  // 更新状态为协作中，让参与者可以在主页看到项目
           
           // 保存选中的路线到项目
           console.log('Saving selected route:', selectedRouteId, 'to project:', projectId);

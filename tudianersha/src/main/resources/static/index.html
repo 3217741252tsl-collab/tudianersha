@@ -296,17 +296,18 @@
           get('/project-participants')
         ]);
 
-        if (projectsResult.success) {
-          allProjects = projectsResult.data;
+        // 后端直接返回数组，不是 ApiResponse 格式
+        if (Array.isArray(projectsResult)) {
+          allProjects = projectsResult;
         }
 
-        if (participantsResult.success) {
-          allParticipants = participantsResult.data;
+        if (Array.isArray(participantsResult)) {
+          allParticipants = participantsResult;
         }
         
         // Also load project-participants for collaboration tracking
-        if (projectParticipantsResult.success) {
-          window.projectParticipants = projectParticipantsResult.data;
+        if (Array.isArray(projectParticipantsResult)) {
+          window.projectParticipants = projectParticipantsResult;
         }
 
         categorizeProjects();
@@ -337,7 +338,7 @@
           createdProjects.push(project);
         }
         // 编辑者（有编辑权限但不是创建者）
-        else if (participant && (participant.permission === '编辑者' || participant.role === 'EDITOR')) {
+        else if (projectParticipant && projectParticipant.role === '编辑者') {
           editingProjects.push(project);
         }
         // 参与者（包括所有非创建者的参与情况）

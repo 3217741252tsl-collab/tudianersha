@@ -11,6 +11,7 @@ import com.tudianersha.entity.User;
 import com.tudianersha.repository.AiGeneratedRouteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -48,8 +49,13 @@ public class AiGeneratedRouteService {
         return aiGeneratedRouteRepository.findById(id);
     }
     
+    @Transactional
     public AiGeneratedRoute saveAiGeneratedRoute(AiGeneratedRoute aiGeneratedRoute) {
-        return aiGeneratedRouteRepository.save(aiGeneratedRoute);
+        System.out.println("[SERVICE] Saving route ID: " + aiGeneratedRoute.getId());
+        System.out.println("[SERVICE] DailyItinerary length: " + (aiGeneratedRoute.getDailyItinerary() != null ? aiGeneratedRoute.getDailyItinerary().length() : 0));
+        AiGeneratedRoute saved = aiGeneratedRouteRepository.save(aiGeneratedRoute);
+        System.out.println("[SERVICE] Route saved, ID: " + saved.getId());
+        return saved;
     }
     
     public void deleteAiGeneratedRoute(Long id) {

@@ -106,6 +106,11 @@ public class UserController {
         
         User user = userOpt.get();
         
+        // 调试信息：输出数据库中的密码
+        System.out.println("[Login] 数据库密码: " + user.getPassword());
+        System.out.println("[Login] 输入密码: " + password);
+        System.out.println("[Login] 密码匹配结果: " + PasswordEncoderUtil.matches(password, user.getPassword()));
+        
         // 验证密码
         if (!PasswordEncoderUtil.matches(password, user.getPassword())) {
             System.out.println("[Login] 密码错误: " + account);

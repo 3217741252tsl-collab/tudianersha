@@ -285,7 +285,9 @@
                             // Get user info
                             const userResponse = await fetch(`/api/users/${participant.userId}`);
                             if (userResponse.ok) {
-                                participant.userInfo = await userResponse.json();
+                                const apiResult = await userResponse.json();
+                                // 后端返回的是 ApiResponse 格式: {success: true, data: {...}}
+                                participant.userInfo = apiResult.data || apiResult;
                             }
                             
                             // Check if user has submitted requirements
