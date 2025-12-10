@@ -12,6 +12,13 @@
 - [ApiResponse.java](file://tudianersha/src/main/java/com/tudianersha/dto/ApiResponse.java)
 </cite>
 
+## 更新摘要
+**变更内容**
+- 更新了AI路线生成控制器文档以反映数据持久化修复
+- 添加了对PUT请求中dailyItinerary字段的说明
+- 更新了服务层事务注解的说明
+- 修正了架构总览和详细组件分析中的流程描述
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
