@@ -169,4 +169,38 @@ public class AmapTestController {
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    
+    /**
+     * 获取附近景点推荐
+     * GET /api/amap-test/nearby-attractions?name=西湖&city=杭州
+     */
+    @GetMapping("/nearby-attractions")
+    public ResponseEntity<Map<String, Object>> getNearbyAttractions(
+            @RequestParam String name,
+            @RequestParam(required = false, defaultValue = "北京") String city) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            System.out.println("[Controller] Getting nearby attractions for: " + name + " in " + city);
+            
+            // 调用服务层搜索附近景点
+            Map<String, Object> result = amapPoiService.searchNearbyAttractions(name, city);
+            
+            if (result == null || !result.containsKey("success")) {
+                response.put("success", false);
+                response.put("message", "搜索失败");
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            
+            return new ResponseEntity<>(result, HttpStatus.OK);
+            
+        } catch (Exception e) {
+            System.err.println("[Controller] Error in getNearbyAttractions: " + e.getMessage());
+            e.printStackTrace();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }

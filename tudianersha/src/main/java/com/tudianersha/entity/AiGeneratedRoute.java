@@ -50,6 +50,9 @@ public class AiGeneratedRoute {
     @Column(name = "cover_image_url", columnDefinition = "TEXT")
     private String coverImageUrl; // 封面图片URL（多张图片用逗号分隔）
     
+    @Column(name = "budgets_json", columnDefinition = "TEXT")
+    private String budgetsJson; // 活动预算数据（JSON格式）
+    
     // Constructors
     public AiGeneratedRoute() {}
     
@@ -171,6 +174,14 @@ public class AiGeneratedRoute {
     
     public void setCoverImageUrl(String coverImageUrl) {
         this.coverImageUrl = coverImageUrl;
+    }
+    
+    public String getBudgetsJson() {
+        return budgetsJson;
+    }
+    
+    public void setBudgetsJson(String budgetsJson) {
+        this.budgetsJson = budgetsJson;
     }
     
     @Override

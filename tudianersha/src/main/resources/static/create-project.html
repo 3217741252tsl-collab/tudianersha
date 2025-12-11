@@ -1810,6 +1810,10 @@
             // 计算天数
             const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
             
+            // Calculate total budget before creating project
+            const dailyBudget = budgetItems.reduce((sum, item) => sum + item.amount, 0);
+            const totalBudget = dailyBudget * days;
+            
             // Create travel project
             const now = new Date().toISOString();
             const projectResult = await post('/travel-projects', {
@@ -1821,7 +1825,8 @@
                 createdTime: now,
                 updatedTime: now,
                 startDate: startDate,  // 添加开始日期
-                endDate: endDate       // 添加结束日期
+                endDate: endDate,      // 添加结束日期
+                totalBudget: totalBudget  // 添加总预算
             });
             
             // 后端直接返回项目对象，不需要检查 success 字段
@@ -1835,10 +1840,7 @@
             // Generate and display share link
             generateShareLink(projectId);
             
-            // Calculate total budget using custom values
-            const dailyBudget = budgetItems.reduce((sum, item) => sum + item.amount, 0);
-            const totalBudget = dailyBudget * days;
-            
+            // Save budget to budgets table (for backward compatibility)
             await post('/budgets', {
                 projectId,
                 totalBudget,

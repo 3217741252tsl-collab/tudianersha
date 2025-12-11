@@ -167,6 +167,36 @@
               <p class="mt-2 text-sm">请选择日期查看行程</p>
             </div>
           </div>
+          
+          <!-- 预算统计区域 -->
+          <div id="budgetSummary" class="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 hidden">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-full">
+                  <iconify-icon icon="mdi:cash-multiple" class="text-blue-600" width="24"></iconify-icon>
+                </div>
+                <div>
+                  <h4 class="font-bold text-gray-800 text-sm">当日预算总计</h4>
+                  <p class="text-xs text-gray-600 mt-0.5">已填写项目的预算总和</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold text-gray-800" id="totalBudget">0</span>
+                  <span class="text-sm text-gray-600">元</span>
+                </div>
+                <div class="text-xs mt-1" id="budgetStatus">
+                  <span class="text-gray-500">计划预算：</span>
+                  <span class="font-semibold" id="plannedBudget">0</span>元
+                </div>
+              </div>
+            </div>
+            <div class="mt-2 text-center">
+              <div id="budgetWarning" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium">
+                <!-- 预算超支或剩余提示 -->
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -224,11 +254,28 @@
                 <span class="text-xs text-gray-500">by Kimi</span>
               </div>
               <div class="prose prose-sm max-w-none">
-                <div id="aiIntroduction" class="text-gray-700 text-sm leading-relaxed max-h-[calc(100vh-500px)] overflow-y-auto">
+                <div id="aiIntroduction" class="text-gray-700 text-sm leading-relaxed max-h-[calc(100vh-600px)] overflow-y-auto">
                   <div class="flex items-center justify-center py-8">
                     <iconify-icon icon="mdi:loading" class="text-blue-500 animate-spin" width="24"></iconify-icon>
                     <span class="ml-2 text-gray-500 text-xs">AI 正在生成介绍...</span>
                   </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 附近景点推荐 -->
+            <div class="border-t pt-4 mt-4" id="nearbyAttractionsSection">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <iconify-icon icon="mdi:map-marker-radius" class="text-white" width="14"></iconify-icon>
+                </div>
+                <h3 class="text-sm font-bold">附近景点推荐</h3>
+                <span class="text-xs text-gray-500">周边可以顺便游览</span>
+              </div>
+              <div id="nearbyAttractions" class="space-y-2">
+                <div class="flex items-center justify-center py-4 text-gray-400 text-xs">
+                  <iconify-icon icon="mdi:loading" class="animate-spin mr-2" width="16"></iconify-icon>
+                  加载中...
                 </div>
               </div>
             </div>
@@ -392,6 +439,8 @@
     let dailyItinerary = []; // 每日行程数据
     let autoRefreshInterval = null; // 自动刷新定时器
     let projectRequirements = []; // 所有用户的需求参数
+    let activityBudgets = {}; // 每个活动的预算 { 'day-index': budget }
+    let dailyBudgetPlan = 0; // 创建者设定的每日预算
     
     // 检查projectId是否存在
     if (!projectId) {
@@ -940,6 +989,10 @@
           }
         }
         
+        // 获取预算值
+        const budgetKey = `${selectedDay}-${index}`;
+        const budgetValue = activityBudgets[budgetKey] || '';
+        
         return `
           <div class="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group">
             ${canEdit ? `
@@ -958,13 +1011,134 @@
               </div>
               <h5 class="text-sm font-medium text-gray-800 line-clamp-2 flex-1">${activity.name}</h5>
               ${userWantText}
+              
+              <!-- 预算输入框 -->
+              <div class="mt-2 pt-2 border-t border-gray-100">
+                <div class="flex items-center gap-1">
+                  <iconify-icon icon="mdi:cash" class="text-gray-400" width="14"></iconify-icon>
+                  <input type="number" 
+                         placeholder="预算" 
+                         value="${budgetValue}"
+                         ${canEdit ? '' : 'disabled'}
+                         onchange="updateActivityBudget('${budgetKey}', this.value)"
+                         class="w-full text-xs px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500 ${canEdit ? '' : 'bg-gray-50 cursor-not-allowed'}"
+                         min="0"
+                         step="0.01" />
+                  <span class="text-xs text-gray-500">元</span>
+                </div>
+              </div>
             </div>
           </div>
         `;
       }).join('');
+      
+      // 更新预算统计
+      updateBudgetSummary(selectedDay);
     }
     
-    // 显示景点详情
+    // 更新活动预算
+    function updateActivityBudget(budgetKey, value) {
+      const budget = parseFloat(value) || 0;
+      activityBudgets[budgetKey] = budget;
+      
+      // 保存预算到后端
+      saveBudgetToBackend();
+      
+      // 更新统计
+      const selectedDay = parseInt(document.getElementById('daySelector').value);
+      updateBudgetSummary(selectedDay);
+    }
+    
+    // 保存预算到后端
+    async function saveBudgetToBackend() {
+      try {
+        const response = await fetch(`/api/ai-generated-routes/${currentRouteData.id}/budgets`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(activityBudgets)
+        });
+        
+        if (response.ok) {
+          console.log('[Budget] Saved successfully');
+        }
+      } catch (error) {
+        console.error('[Budget] Error saving:', error);
+      }
+    }
+    
+    // 加载预算数据
+    async function loadBudgets() {
+      try {
+        const response = await fetch(`/api/ai-generated-routes/${currentRouteData.id}/budgets`);
+        if (response.ok) {
+          const budgets = await response.json();
+          activityBudgets = budgets || {};
+          console.log('[Budget] Loaded:', activityBudgets);
+        }
+      } catch (error) {
+        console.error('[Budget] Error loading:', error);
+        activityBudgets = {};
+      }
+    }
+    
+    // 更新预算统计
+    function updateBudgetSummary(selectedDay) {
+      // 计算当天的总预算
+      let total = 0;
+      Object.keys(activityBudgets).forEach(key => {
+        const [day, index] = key.split('-');
+        if (parseInt(day) === selectedDay) {
+          total += parseFloat(activityBudgets[key]) || 0;
+        }
+      });
+      
+      // 显示预算区域
+      const summaryEl = document.getElementById('budgetSummary');
+      if (total > 0 || canEdit) {
+        summaryEl.classList.remove('hidden');
+      } else {
+        summaryEl.classList.add('hidden');
+        return;
+      }
+      
+      // 更新总预算
+      document.getElementById('totalBudget').textContent = total.toFixed(2);
+      document.getElementById('plannedBudget').textContent = dailyBudgetPlan.toFixed(2);
+      
+      // 显示预算对比
+      const warningEl = document.getElementById('budgetWarning');
+      const diff = dailyBudgetPlan - total;
+      
+      if (dailyBudgetPlan > 0) {
+        if (diff < 0) {
+          // 预算超支
+          warningEl.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 flex items-center justify-center gap-1';
+          warningEl.innerHTML = `
+            <iconify-icon icon="mdi:alert-circle" width="14"></iconify-icon>
+            <span>预算超支 ${Math.abs(diff).toFixed(2)} 元，请注意控制开支</span>
+          `;
+          warningEl.classList.remove('hidden');
+        } else if (diff > 0) {
+          // 预算剩余
+          warningEl.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-green-100 text-green-700 flex items-center justify-center gap-1';
+          warningEl.innerHTML = `
+            <iconify-icon icon="mdi:check-circle" width="14"></iconify-icon>
+            <span>预算剩余 ${diff.toFixed(2)} 元，还可以安排其他活动</span>
+          `;
+          warningEl.classList.remove('hidden');
+        } else {
+          // 预算正好
+          warningEl.className = 'px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 flex items-center justify-center gap-1';
+          warningEl.innerHTML = `
+            <iconify-icon icon="mdi:information" width="14"></iconify-icon>
+            <span>预算使用合理，正好符合计划</span>
+          `;
+          warningEl.classList.remove('hidden');
+        }
+      } else {
+        warningEl.classList.add('hidden');
+      }
+    }
     async function showAttractionDetail(index) {
       const attraction = currentDayAttractions[index];
       if (!attraction) return;
@@ -999,6 +1173,9 @@
       
       // 生成AI介绍
       await generateAIIntroduction(attraction);
+      
+      // 加载附近景点推荐
+      await loadNearbyAttractions(attraction);
     }
     
     // 加载高德景点信息（只获取地址）
@@ -1099,6 +1276,80 @@
         `;
         document.getElementById('aiIntroduction').innerHTML = introduction;
       }
+    }
+    
+    // 加载附近景点推荐
+    async function loadNearbyAttractions(attraction) {
+      const container = document.getElementById('nearbyAttractions');
+      container.innerHTML = `
+        <div class="flex items-center justify-center py-4 text-gray-400 text-xs">
+          <iconify-icon icon="mdi:loading" class="animate-spin mr-2" width="16"></iconify-icon>
+          加载中...
+        </div>
+      `;
+      
+      try {
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const project = await projectResponse.json();
+        const city = project.destination;
+        
+        // 调用高德API搜索附近景点
+        const response = await fetch(`/api/amap-test/nearby-attractions?name=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch nearby attractions');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.attractions && data.attractions.length > 0) {
+          // 显示附近景点（最多5个）
+          const nearbyList = data.attractions.slice(0, 5).map(poi => `
+            <div class="bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="addAttractionFromRecommendation('${poi.name}')">
+              <div class="flex items-start gap-2">
+                <iconify-icon icon="mdi:map-marker" class="text-green-600 mt-0.5" width="16"></iconify-icon>
+                <div class="flex-1 min-w-0">
+                  <h5 class="text-xs font-semibold text-gray-800 truncate">${poi.name}</h5>
+                  <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${poi.address || '地址未知'}</p>
+                  ${poi.distance ? `<p class="text-xs text-blue-600 mt-0.5">距离约 ${poi.distance}</p>` : ''}
+                </div>
+                ${canEdit ? `
+                  <iconify-icon icon="mdi:plus-circle" class="text-green-600 flex-shrink-0" width="16" title="添加到行程"></iconify-icon>
+                ` : ''}
+              </div>
+            </div>
+          `).join('');
+          
+          container.innerHTML = nearbyList;
+        } else {
+          container.innerHTML = `
+            <div class="text-center py-4 text-gray-400 text-xs">
+              <iconify-icon icon="mdi:map-marker-off" width="20" class="mb-1"></iconify-icon>
+              <p>暂无附近景点推荐</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error loading nearby attractions:', error);
+        container.innerHTML = `
+          <div class="text-center py-4 text-gray-400 text-xs">
+            <iconify-icon icon="mdi:alert-circle" width="20" class="mb-1"></iconify-icon>
+            <p>加载失败，请稍后重试</p>
+          </div>
+        `;
+      }
+    }
+    
+    // 从推荐中添加景点到行程
+    function addAttractionFromRecommendation(attractionName) {
+      if (!canEdit) {
+        alert('您没有编辑权限');
+        return;
+      }
+      
+      // 打开新增活动弹窗并预填景点名称
+      openAddActivityModal();
+      document.getElementById('activityName').value = attractionName;
+      document.getElementById('activityType').value = 'attraction';
     }
 
     // 项目参与者列表
@@ -1988,14 +2239,33 @@
       }
       
       try {
-        // 加载项目需求参数（用于显示“xxx想去”）
+        // 加载项目需求参数（用于显示"xxx想去"）
         console.log('Step 6: Loading project requirements...');
         await loadProjectRequirements();
         console.log('Step 6: Requirements loaded');
-        // 重新渲染景点列表以显示“xxx想去”
+        // 重新渲染景点列表以显示"xxx想去"
         await loadDayAttractions();
       } catch (error) {
         console.error('Step 6 failed:', error);
+      }
+            
+      try {
+        // 加载预算数据
+        console.log('Step 7: Loading budget data...');
+        await loadBudgets();
+        console.log('Step 7: Budget data loaded');
+        // 获取每日预算
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        if (projectResponse.ok) {
+          const project = await projectResponse.json();
+          // 计算每日平均预算
+          if (project.totalBudget && project.days) {
+            dailyBudgetPlan = project.totalBudget / project.days;
+          }
+          console.log('Daily budget plan:', dailyBudgetPlan);
+        }
+      } catch (error) {
+        console.error('Step 7 failed:', error);
       }
       
       // 每3秒轮询一次新消息

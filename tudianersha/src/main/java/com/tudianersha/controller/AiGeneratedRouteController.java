@@ -155,4 +155,69 @@ public class AiGeneratedRouteController {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    
+    /**
+     * Save activity budgets for a route
+     * PUT /api/ai-generated-routes/{id}/budgets
+     */
+    @PutMapping("/{id}/budgets")
+    public ResponseEntity<Map<String, Object>> saveBudgets(@PathVariable Long id, @RequestBody Map<String, Double> budgets) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            Optional<AiGeneratedRoute> aiGeneratedRoute = aiGeneratedRouteService.getAiGeneratedRouteById(id);
+            if (aiGeneratedRoute.isPresent()) {
+                AiGeneratedRoute route = aiGeneratedRoute.get();
+                // 将budgets存储为JSON字符串
+                String budgetsJson = new com.google.gson.Gson().toJson(budgets);
+                route.setBudgetsJson(budgetsJson);
+                aiGeneratedRouteService.saveAiGeneratedRoute(route);
+                
+                response.put("success", true);
+                response.put("message", "预算保存成功");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                response.put("success", false);
+                response.put("message", "路线不存在");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "保存失败: " + e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    /**
+     * Get activity budgets for a route
+     * GET /api/ai-generated-routes/{id}/budgets
+     */
+    @GetMapping("/{id}/budgets")
+    public ResponseEntity<Map<String, Double>> getBudgets(@PathVariable Long id) {
+        try {
+            Optional<AiGeneratedRoute> aiGeneratedRoute = aiGeneratedRouteService.getAiGeneratedRouteById(id);
+            if (aiGeneratedRoute.isPresent()) {
+                AiGeneratedRoute route = aiGeneratedRoute.get();
+                String budgetsJson = route.getBudgetsJson();
+                
+                if (budgetsJson != null && !budgetsJson.isEmpty()) {
+                    // 从JSON字符串解析budgets
+                    @SuppressWarnings("unchecked")
+                    Map<String, Double> budgets = new com.google.gson.Gson().fromJson(
+                        budgetsJson, 
+                        new com.google.gson.reflect.TypeToken<Map<String, Double>>(){}.getType()
+                    );
+                    return new ResponseEntity<>(budgets, HttpStatus.OK);
+                } else {
+                    // 返回空对象
+                    return new ResponseEntity<>(new HashMap<>(), HttpStatus.OK);
+                }
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(new HashMap<>(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }

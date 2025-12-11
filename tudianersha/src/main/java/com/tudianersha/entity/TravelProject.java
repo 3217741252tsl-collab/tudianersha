@@ -41,6 +41,9 @@ public class TravelProject {
     @Column(name = "end_date")
     private String endDate; // 结束日期
     
+    @Column(name = "total_budget")
+    private Double totalBudget; // 总预算
+    
     // Constructors
     public TravelProject() {}
     
@@ -142,6 +145,14 @@ public class TravelProject {
     
     public void setEndDate(String endDate) {
         this.endDate = endDate;
+    }
+    
+    public Double getTotalBudget() {
+        return totalBudget;
+    }
+    
+    public void setTotalBudget(Double totalBudget) {
+        this.totalBudget = totalBudget;
     }
     
     @Override
