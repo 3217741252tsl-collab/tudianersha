@@ -427,7 +427,7 @@ GET    /api/ai-routes/{projectId}   # 获取项目路线
 
 ## 许可证
 
-MIT License
+惠州学院23软工3班HappCoding团队
 
 ---
 
