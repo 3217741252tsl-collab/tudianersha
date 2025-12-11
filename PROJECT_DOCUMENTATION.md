@@ -1,7 +1,8 @@
 # 途点儿啥旅游规划系统 - 完整项目文档
 
-**版本**: 1.1.0  
+**版本**: 1.2.0  
 **创建日期**: 2025-12-10  
+**更新日期**: 2025-12-11  
 **GitHub**: https://github.com/3217741252tsl-collab/tudianersha
 
 ---
@@ -32,8 +33,9 @@
 - 🤝 多人协作填写旅行需求
 - 🤖 AI 智能生成旅行路线
 - 📊 实时监控参与者进度
-- 💰 预算管理和行程安排
-- 📄 PDF 行程单导出
+- 💰 智能预算管理和超支预警
+- 🗺️ 附近景点智能推荐
+- 📄 包含预算信息的PDF行程单导出
 
 ### 1.2 应用场景
 
@@ -426,18 +428,34 @@ String aiResponse = kimiAIService.generateRoute(prompt);
 aiRouteService.save(projectId, aiResponse);
 ```
 
-### 5.5 预算管理模块
+### 5.5 智能预算管理模块
 
 **功能点**:
-- 预算分类管理
-- 费用明细记录
-- 预算统计分析
-- 预算提醒
+- 创建项目时设定总预算，自动计算每日预算计划
+- 协作界面每个景点/活动下方添加预算输入框
+- 实时计算当日总预算并与计划预算对比
+- 预算超支/剩余智能提示（红色警告/绿色提示）
+- 权限控制：创建者和编辑者可修改预算，查看者只读
+- 预算数据自动保存到数据库（budgetsJson字段）
+- PDF导出包含完整预算信息和对比分析
 
 **关键类**:
-- `BudgetController.java`
-- `BudgetService.java`
-- `Budget.java`
+- `BudgetController.java` - 预算接口控制器
+- `BudgetService.java` - 预算业务逻辑
+- `Budget.java` - 预算实体
+- `TravelProject.java` - 项目实体（包含totalBudget字段）
+- `AiGeneratedRoute.java` - 路线实体（包含budgetsJson字段）
+- `ItineraryPdfService.java` - PDF生成服务（包含预算表格）
+
+**数据结构**:
+```json
+// budgetsJson 格式
+{
+  "1-0": 100.00,  // 第1天第0个活动的预算
+  "1-1": 200.00,  // 第1天第1个活动的预算
+  "2-0": 150.00   // 第2天第0个活动的预算
+}
+```
 
 ### 5.6 行程安排模块
 
@@ -464,17 +482,61 @@ aiRouteService.save(projectId, aiResponse);
 - `ChatMessageService.java`
 - `ChatMessage.java`
 
-### 5.8 文档导出模块
+### 5.8 附近景点推荐模块
 
 **功能点**:
-- PDF 行程单生成
+- 基于高德地图API的精准位置服务
+- 点击景点查看介绍时，自动加载周边2公里内景点
+- 显示景点名称、地址和距离信息
+- 支持一键添加推荐景点到行程
+- 智能过滤和排序推荐结果
+
+**关键类**:
+- `AmapPoiService.java` - 高德地图服务
+- `AmapTestController.java` - 地图API控制器
+
+**API调用示例**:
+```java
+// 搜索附近景点
+public List<Map<String, Object>> searchNearbyAttractions(
+    String location, 
+    String city
+) {
+    String url = String.format(
+        "https://restapi.amap.com/v3/place/around?key=%s&location=%s&radius=2000&types=风景名胜",
+        amapApiKey, location
+    );
+    // 返回周边2公里内的景点列表
+}
+```
+
+### 5.9 文档导出模块
+
+**功能点**:
+- PDF 行程单生成（包含预算信息）
+- 三列表格布局：时间、活动内容、预算（元）
+- 每日总预算统计和预算对比分析
+- 预算超支/剩余彩色标识
+- 专业的表格设计和中文字体支持
 - 文档在线预览
 - 分享链接生成
 
 **关键类**:
-- `ItineraryPdfService.java`
-- `PdfExportController.java`
-- `SharedDocumentService.java`
+- `ItineraryPdfService.java` - PDF生成服务
+- `PdfExportController.java` - PDF导出控制器
+- `SharedDocumentService.java` - 分享文档服务
+
+**PDF表格结构**:
+```
+┌──────────┬────────────────────────┬──────────────┐
+│   时间   │      活动内容          │  预算（元）  │
+├──────────┼────────────────────────┼──────────────┤
+│ 09:00-11:00 │ 宽窄巷子              │   100.00    │
+│ 12:00-13:00 │ 午餐                  │   200.00    │
+└──────────┴────────────────────────┴──────────────┘
+当日总预算：¥300.00
+计划预算：¥500.00/天 | 剩余 ¥200.00
+```
 
 ---
 
@@ -662,6 +724,65 @@ Response:
 }
 ```
 
+#### 搜索附近景点（新增v1.2.0）
+```
+GET /api/amap-test/poi/nearby?location=104.056,30.672&city=成都
+
+Response:
+{
+    "success": true,
+    "attractions": [
+        {
+            "name": "人民公园",
+            "address": "青羊区祠堂街少城路12号",
+            "location": "104.062,30.671",
+            "distance": "650",  // 单位：米
+            "type": "公园广场"
+        },
+        {
+            "name": "天府广场",
+            "address": "青羊区人民南路一段",
+            "location": "104.066,30.659",
+            "distance": "1200",
+            "type": "风景名胜"
+        }
+    ]
+}
+```
+
+### 6.7 预算管理 API（新增v1.2.0）
+
+#### 保存景点预算
+```
+PUT /api/ai-routes/{routeId}
+Content-Type: application/json
+
+Request Body:
+{
+    "budgetsJson": "{\"1-0\":100.00,\"1-1\":200.00,\"2-0\":150.00}"
+}
+
+Response:
+{
+    "success": true,
+    "message": "预算保存成功"
+}
+```
+
+#### 获取项目总预算
+```
+GET /api/travel-projects/{projectId}
+
+Response:
+{
+    "id": 1,
+    "projectName": "成都七日游",
+    "totalBudget": 5000.00,
+    "days": 7,
+    "dailyBudgetPlan": 714.29  // totalBudget / days
+}
+```
+
 ---
 
 ## 7. 前端页面说明
@@ -742,21 +863,56 @@ async function handleLogin(username, password) {
 
 **功能**:
 - 参与者填写需求
+- 查看和编辑AI生成的行程路线
+- 智能预算管理
+  - 显示项目总预算和每日预算计划
+  - 每个景点/活动下方可输入预算金额
+  - 实时计算当日总预算
+  - 预算超支/剩余智能提示
+  - 创建者和编辑者可修改，查看者只读
+- 附近景点推荐
+  - 点击景点查看详情
+  - 自动加载周边2公里内景点
+  - 显示名称、地址、距离
+  - 一键添加到行程
 - 实时聊天
-- 查看其他参与者
-- 权限管理
+- 查看其他参与者头像和信息
+- 权限管理（创建者/编辑者/查看者）
+- 景点"xxx想去"标记显示
 
 **布局结构**:
 ```
-┌─────────────────────────────────────────┐
-│          项目标题 + 参与者头像            │
-├──────────────────┬──────────────────────┤
-│                  │                      │
-│   需求表单区      │     实时聊天区        │
-│   (左侧70%)       │     (右侧30%)        │
-│                  │                      │
-└──────────────────┴──────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│          项目标题 + 参与者头像                        │
+├─────────────────────────────────────────────────────┤
+│                   路线总览                           │
+│   第1天                                             │
+│   ├─ 09:00-11:00 宽窄巷子  [预算输入: ¥100]          │
+│   │   「xxx想去」标记                                │
+│   │   [查看介绍] → 显示附近景点推荐                   │
+│   ├─ 12:00-13:00 午餐     [预算输入: ¥200]          │
+│   当日总预算: ¥300 (计划: ¥500/天, 剩余: ¥200)      │
+├─────────────────────────────────────────────────────┤
+│                   实时聊天区                         │
+└─────────────────────────────────────────────────────┘
 ```
+
+**预算管理功能详解**:
+1. **总预算显示**: 页面顶部显示项目总预算和每日预算计划
+2. **景点预算输入**: 每个活动下方有预算输入框（创建者/编辑者可编辑）
+3. **实时计算**: 修改预算后自动计算当日总预算
+4. **超支提示**: 
+   - 超出计划：红色文字 "超出计划 ¥XX"
+   - 剩余预算：绿色文字 "剩余 ¥XX"
+   - 符合计划：蓝色文字 "符合计划"
+5. **自动保存**: 预算数据失焦后自动保存到数据库
+
+**附近景点推荐功能详解**:
+1. 点击任意景点的"查看介绍"按钮
+2. 弹出景点详情对话框，显示景点基本信息
+3. 自动加载周边2公里内的推荐景点
+4. 显示推荐景点的名称、地址、距离
+5. 点击"添加到行程"可一键将推荐景点添加到当前行程
 
 ### 7.5 参与者状态监控页面 (participants-status.html)
 
@@ -1303,7 +1459,60 @@ DELETE /api/users/{id}   - 删除用户
 
 ---
 
-## 附录 C: 更新日志
+### 附录 C: 更新日志
+
+### v1.2.0 (2025-12-11)
+
+**新增功能**:
+- ✨ **智能预算管理系统**
+  - 创建项目时设置总预算，自动计算每日预算计划
+  - 协作界面每个景点/活动下方添加预算输入框
+  - 实时计算当日总预算并与计划预算对比
+  - 预算超支/剩余智能提示（红色警告/绿色提示）
+  - 创建者和编辑者可修改预算，查看者只读
+  - 预算数据自动保存到数据库
+
+- 🗺️ **附近景点智能推荐**
+  - 点击景点查看介绍时，自动加载周边2公里内景点
+  - 显示景点名称、地址和距离信息
+  - 支持一键添加推荐景点到行程
+  - 基于高德地图API的精准位置服务
+
+- 📄 **PDF导出增强**
+  - PDF中包含完整的预算信息表格
+  - 三列布局：时间、活动内容、预算（元）
+  - 每日总预算统计和预算对比分析
+  - 预算超支/剩余彩色标识
+  - 专业的表格设计和中文字体支持
+
+**技术改进**:
+- 🔧 `TravelProject`实体添加`totalBudget`字段
+- 🔧 `AiGeneratedRoute`实体添加`budgetsJson`字段
+- 🔧 Maven编译器配置启用参数名称保留（`<parameters>true</parameters>`）
+- 🔧 数据库自动迁移支持新增字段
+- 🔧 `AmapPoiService`添加`searchNearbyAttractions()`方法
+- 🔧 `ItineraryPdfService`重构PDF生成逻辑，集成预算表格
+
+**Bug修复**:
+- 🐛 修复AI路线生成时的参数名称识别问题
+  - 问题：`IllegalArgumentException: Name for argument not specified`
+  - 解决：在pom.xml中配置maven-compiler-plugin启用参数保留
+- 🐛 修复协作界面预算计划显示为0的问题
+  - 问题：`TravelProject`实体缺少`totalBudget`字段
+  - 解决：添加字段并执行数据库迁移
+
+**数据库变更**:
+- ✅ `travel_projects`表添加`total_budget`字段（DECIMAL(10,2)）
+- ✅ `ai_generated_routes`表添加`budgets_json`字段（TEXT）
+- ✅ 提供数据库迁移脚本：
+  - `database_update_total_budget.sql`
+  - `database_update_budgets.sql`
+
+**API变更**:
+- 新增：`GET /api/amap-test/poi/nearby` - 搜索附近景点
+- 增强：`PUT /api/ai-routes/{routeId}` - 支持保存budgetsJson
+- 增强：`GET /api/travel-projects/{id}` - 返回totalBudget字段
+- 增强：`GET /api/pdf/export/{projectId}` - PDF包含预算信息
 
 ### v1.1.0 (2025-12-10)
 
