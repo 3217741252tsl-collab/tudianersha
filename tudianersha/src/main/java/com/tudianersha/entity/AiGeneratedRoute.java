@@ -47,11 +47,11 @@ public class AiGeneratedRoute {
     @Column(name = "daily_itinerary", columnDefinition = "TEXT")
     private String dailyItinerary; // 每日行程JSON
     
-    @Column(name = "cover_image_url", columnDefinition = "TEXT")
-    private String coverImageUrl; // 封面图片URL（多张图片用逗号分隔）
+    @Column(name = "cover_image_url")
+    private String coverImageUrl; // 封面图片URL
     
     @Column(name = "budgets_json", columnDefinition = "TEXT")
-    private String budgetsJson; // 活动预算数据（JSON格式）
+    private String budgetsJson; // 预算数据JSON（v1.2新增）
     
     // Constructors
     public AiGeneratedRoute() {}

@@ -116,7 +116,7 @@
     }
 
     const currentUser = auth.getUser();
-    const projectId = getQueryParam('id');
+    const projectId = getQueryParam('projectId') || getQueryParam('id');
     let selectedRouteId = null;
     let aiRoutes = [];
 
@@ -155,9 +155,7 @@
       document.getElementById('projectInfo').innerHTML = `
         <i class="fa fa-map-marker text-primary mr-1"></i> 目的地：${project.destination || '未设置'}
         <span class="mx-2">|</span>
-        <i class="fa fa-calendar text-primary mr-1"></i> ${project.days || 0}天
-        <span class="mx-2">|</span>
-        <i class="fa fa-clock-o text-primary mr-1"></i> ${project.startDate || ''} 至 ${project.endDate || ''}
+        <i class="fa fa-calendar text-primary mr-1"></i> ${project.durationDays || 0}天
       `;
     }
 
@@ -170,8 +168,6 @@
         }
         
         aiRoutes = await response.json();
-        
-        console.log('Loaded AI routes:', aiRoutes); // Debug log
         
         if (!aiRoutes || aiRoutes.length === 0) {
           document.getElementById('routesContainer').innerHTML = `
@@ -197,19 +193,6 @@
 
     function displayRoutes(routes) {
       const container = document.getElementById('routesContainer');
-      
-      // 详细日志
-      routes.forEach((route, index) => {
-        console.log(`Route ${index + 1}:`, {
-          id: route.id,
-          title: route.routeTitle,
-          hasDailyItinerary: !!route.dailyItinerary,
-          dailyItineraryLength: route.dailyItinerary ? route.dailyItinerary.length : 0,
-          dailyItineraryPreview: route.dailyItinerary ? route.dailyItinerary.substring(0, 100) : 'null',
-          coverImageUrl: route.coverImageUrl
-        });
-      });
-      
       container.innerHTML = routes.map((route, index) => createRouteCard(route, index)).join('');
       
       // 默认选中第一个
@@ -222,40 +205,20 @@
 
     function createRouteCard(route, index) {
       const isSelected = index === 0;
-      
-      // 处理封面图片：如果是多张图片（逗号分隔），则显示为网格拼接图
-      let imageHtml = '';
-      const defaultImage = `https://picsum.photos/id/${1036 + index * 3}/600/300`;
-      
-      if (route.coverImageUrl && route.coverImageUrl.includes(',')) {
-        // 多张图片，显示为2x3网格拼接图
-        const imageUrls = route.coverImageUrl.split(',').slice(0, 6); // 最多6张
-        imageHtml = `
-          <div class="grid grid-cols-3 grid-rows-2 gap-0 h-48">
-            ${imageUrls.map((url, i) => `
-              <img src="${url}" alt="景点${i+1}" class="w-full h-full object-cover" 
-                   onerror="this.src='https://picsum.photos/200/150?random=${index * 10 + i}'">
-            `).join('')}
-            ${imageUrls.length < 6 ? Array(6 - imageUrls.length).fill(0).map((_, i) => `
-              <img src="https://picsum.photos/200/150?random=${index * 10 + imageUrls.length + i}" 
-                   alt="景点占位" class="w-full h-full object-cover">
-            `).join('') : ''}
-          </div>
-        `;
-      } else {
-        // 单张图片
-        const imageUrl = route.coverImageUrl || defaultImage;
-        imageHtml = `
-          <img src="${imageUrl}" alt="${route.routeTitle || '路线' + (index + 1)}" class="w-full h-48 object-cover" 
-               onerror="this.src='https://picsum.photos/600/300?random=${index}'">
-        `;
-      }
+      // 使用AI生成的封面图片，或不同的默认图片
+      const defaultImages = [
+        'https://images.unsplash.com/photo-1530521954074-e64f6810b32d?w=600&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=600&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600&h=300&fit=crop'
+      ];
+      const imageUrl = route.coverImageUrl || defaultImages[index % defaultImages.length];
       
       return `
         <div class="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden card-hover ${isSelected ? 'selected-card' : ''}" 
              id="plan${route.id}" data-route-id="${route.id}">
           <div class="relative">
-            ${imageHtml}
+            <img src="${imageUrl}" alt="${route.routeTitle || '路线' + (index + 1)}" class="w-full h-48 object-cover" 
+                 onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&h=300&fit=crop'">
             <div class="absolute top-3 left-3 bg-primary text-white text-xs font-medium px-2 py-1 rounded">
               推荐指数 ${route.recommendationScore || 85}%
             </div>
@@ -390,9 +353,8 @@
       `;
       
       // 每日行程 - 可视化展示
-      if (route.dailyItinerary && route.dailyItinerary !== 'null' && route.dailyItinerary.trim() !== '') {
+      if (route.dailyItinerary) {
         try {
-          console.log('Daily itinerary:', route.dailyItinerary); // Debug log
           const dailyItinerary = JSON.parse(route.dailyItinerary);
           detailHTML += `
             <div class="mb-6">
@@ -421,10 +383,20 @@
             
             if (day.activities && Array.isArray(day.activities)) {
               day.activities.forEach((activity, actIndex) => {
+                // 处理新的数据结构：{text: "...", poiInfo: {...}}
+                let activityText = '';
+                if (typeof activity === 'object' && activity.text) {
+                  // 新的结构化数据
+                  activityText = activity.text;
+                } else if (typeof activity === 'string') {
+                  // 兼容旧的字符串格式
+                  activityText = activity;
+                }
+                
                 // 提取时间和内容
-                const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
+                const timeMatch = activityText.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
                 let timeStr = '';
-                let contentStr = activity;
+                let contentStr = activityText;
                 let timeIcon = 'fa-clock-o';
                 
                 if (timeMatch) {
@@ -460,22 +432,27 @@
           
           detailHTML += `</div>`;
         } catch (e) {
-          console.error('解析行程失败:', e);
+          console.error('解析行程失败:', e, '原始数据:', route.dailyItinerary);
+          // 解析失败时显示友好提示
+          detailHTML += `
+            <div class="mb-6">
+              <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                <i class="fa fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                行程数据加载失败
+              </h4>
+              <p class="text-gray-600">无法解析行程数据，请重新生成路线或联系管理员。</p>
+            </div>
+          `;
         }
-      }
-      
-      // 如果没有结构化数据，显示AI原始响应（但美化显示）
-      if (route.routeContent && (!route.dailyItinerary || route.dailyItinerary === 'null' || route.dailyItinerary.trim() === '')) {
-        console.log('Showing raw content, dailyItinerary:', route.dailyItinerary); // Debug log
+      } else {
+        // 如果没有 dailyItinerary 数据，显示提示信息
         detailHTML += `
           <div class="mb-6">
             <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
-              <i class="fa fa-lightbulb-o text-primary mr-2"></i>
-              AI智能推荐
+              <i class="fa fa-exclamation-triangle text-yellow-500 mr-2"></i>
+              行程数据不完整
             </h4>
-            <div class="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
-              <div class="text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto" style="line-height: 1.8;">${formatAIContent(route.routeContent)}</div>
-            </div>
+            <p class="text-gray-600">该路线缺少详细行程数据，请重新生成路线。</p>
           </div>
         `;
       }
@@ -526,45 +503,33 @@
       });
 
       document.getElementById('confirmBtn').addEventListener('click', async () => {
-        console.log('===== CONFIRM BUTTON CLICKED (NEW VERSION) =====');
         if (!selectedRouteId) {
           showToast('请先选择一个路线方案');
           return;
         }
         
         try {
-          // 先获取当前项目信息
-          console.log('Fetching current project...');
-          const getResponse = await fetch(`/api/travel-projects/${projectId}`);
-          if (!getResponse.ok) {
-            throw new Error('Failed to fetch project');
-          }
-          const project = await getResponse.json();
-          
-          // 更新currentRouteId和状态
-          project.currentRouteId = selectedRouteId;
-          project.status = '协作中';  // 更新状态为协作中，让参与者可以在主页看到项目
-          
-          // 保存选中的路线到项目
-          console.log('Saving selected route:', selectedRouteId, 'to project:', projectId);
-          const response = await fetch(`/api/travel-projects/${projectId}`, {
+          // 更新项目的currentRouteId
+          const updateResponse = await fetch(`/api/travel-projects/${projectId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(project)
+            body: JSON.stringify({
+              currentRouteId: selectedRouteId
+            })
           });
           
-          if (!response.ok) {
-            throw new Error('Failed to save route selection');
+          if (!updateResponse.ok) {
+            showToast('设置路线失败，请重试');
+            return;
           }
           
-          console.log('Route selection saved successfully');
           showToast('正在进入协作界面...');
           setTimeout(() => window.location.href = `/collaboration.html?id=${projectId}`, 1500);
         } catch (error) {
-          console.error('Error saving route selection:', error);
-          showToast('保存选择失败，请重试');
+          console.error('Error setting route:', error);
+          showToast('设置路线失败：' + error.message);
         }
       });
     }

@@ -1,5 +1,5 @@
-// API基础配置 - 使用相对路径，自动适配当前端口
-const API_BASE_URL = '/api';
+// API基础配置
+const API_BASE_URL = 'http://localhost:8010/api';
 
 // 通用API请求函数
 async function apiRequest(url, options = {}) {
@@ -30,9 +30,9 @@ async function apiRequest(url, options = {}) {
             return { success: true, data: null };
         }
         
-        // 解析JSON - 直接返回后端的ApiResponse，不再包装
+        // 解析JSON
         const data = JSON.parse(text);
-        return data;
+        return { success: true, data };
     } catch (error) {
         console.error('API请求错误:', error);
         return { success: false, error: error.message };

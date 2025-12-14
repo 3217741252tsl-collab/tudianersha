@@ -44,14 +44,32 @@ public class TravelProjectController {
         Optional<TravelProject> travelProject = travelProjectService.getTravelProjectById(id);
         if (travelProject.isPresent()) {
             TravelProject existingTravelProject = travelProject.get();
-            existingTravelProject.setProjectName(travelProjectDetails.getProjectName());
-            existingTravelProject.setDestination(travelProjectDetails.getDestination());
-            existingTravelProject.setDays(travelProjectDetails.getDays());
-            existingTravelProject.setCreatorId(travelProjectDetails.getCreatorId());
-            existingTravelProject.setStatus(travelProjectDetails.getStatus());
-            existingTravelProject.setCreatedTime(travelProjectDetails.getCreatedTime());
-            existingTravelProject.setUpdatedTime(travelProjectDetails.getUpdatedTime());
-            existingTravelProject.setCurrentRouteId(travelProjectDetails.getCurrentRouteId());
+            
+            // 只更新提供的字段（支持部分更新）
+            if (travelProjectDetails.getProjectName() != null) {
+                existingTravelProject.setProjectName(travelProjectDetails.getProjectName());
+            }
+            if (travelProjectDetails.getDestination() != null) {
+                existingTravelProject.setDestination(travelProjectDetails.getDestination());
+            }
+            if (travelProjectDetails.getDays() != null) {
+                existingTravelProject.setDays(travelProjectDetails.getDays());
+            }
+            if (travelProjectDetails.getCreatorId() != null) {
+                existingTravelProject.setCreatorId(travelProjectDetails.getCreatorId());
+            }
+            if (travelProjectDetails.getStatus() != null) {
+                existingTravelProject.setStatus(travelProjectDetails.getStatus());
+            }
+            if (travelProjectDetails.getCreatedTime() != null) {
+                existingTravelProject.setCreatedTime(travelProjectDetails.getCreatedTime());
+            }
+            if (travelProjectDetails.getUpdatedTime() != null) {
+                existingTravelProject.setUpdatedTime(travelProjectDetails.getUpdatedTime());
+            }
+            if (travelProjectDetails.getCurrentRouteId() != null) {
+                existingTravelProject.setCurrentRouteId(travelProjectDetails.getCurrentRouteId());
+            }
             
             TravelProject updatedTravelProject = travelProjectService.saveTravelProject(existingTravelProject);
             return new ResponseEntity<>(updatedTravelProject, HttpStatus.OK);

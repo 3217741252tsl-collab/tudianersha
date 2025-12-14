@@ -201,7 +201,7 @@
 
   <footer class="mt-auto py-6 px-4 border-t border-gray-100">
     <div class="container mx-auto text-center text-sm text-gray-500">
-      <p>© 2023 途点儿啥旅行规划平台 · 让旅行更简单</p>
+      <p>© 2025 途点儿啥旅行规划平台 · 让旅行更简单</p>
     </div>
   </footer>
 
@@ -280,10 +280,45 @@
 
       try {
         const result = await post('/users/login', { account, password: pwd });
+        console.log('[Login] 完整响应:', result);
+        
         if (result.success) {
-          auth.setUser(result.data);
+          // 后端返回的是嵌套结构，需要取 result.data.data
+          let userData = result.data;
+          
+          // 如果 result.data 还是个嵌套的 ApiResponse 结构，再取一次 data
+          if (userData && userData.data && userData.success) {
+            console.log('[Login] 检测到嵌套结构，使用 result.data.data');
+            userData = userData.data;
+          }
+          
+          console.log('[Login] 最终用户数据:', userData);
+          
+          // 验证 userData 是否有效
+          if (!userData || !userData.username) {
+            console.error('[Login] 返回数据无效:', userData);
+            showToast('登录数据异常，请重试');
+            return;
+          }
+          
+          // 保存用户数据
+          auth.setUser(userData);
+          
+          // 验证是否保存成功
+          const savedUser = auth.getUser();
+          console.log('[Login] 用户信息已保存:', savedUser);
+          console.log('[Login] savedUser.username:', savedUser ? savedUser.username : 'undefined');
+          
+          if (!savedUser || !savedUser.username) {
+            console.error('[Login] 保存失败！');
+            showToast('用户信息保存失败，请重试');
+            return;
+          }
+          
           showToast('登录成功！');
-          setTimeout(() => navigate('/index.html'), 1000);
+          // 确保 localStorage 写入完成后再跳转
+          await new Promise(resolve => setTimeout(resolve, 500));
+          window.location.href = '/index.html';
         } else {
           showToast(result.message || '登录失败');
         }

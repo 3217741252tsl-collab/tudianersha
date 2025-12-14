@@ -53,6 +53,8 @@ public class AmapPoiService {
         );
         
         System.out.println("[Amap POI Search] Searching for: " + keyword + " in " + city);
+        System.out.println("[Amap POI Search] API Key: " + (apiKey != null ? apiKey.substring(0, Math.min(10, apiKey.length())) + "..." : "null"));
+        System.out.println("[Amap POI Search] Request URL: " + url);
         
         Request request = new Request.Builder()
                 .url(url)
@@ -65,7 +67,10 @@ public class AmapPoiService {
             }
             
             String responseBody = response.body().string();
+            System.out.println("[Amap POI Search] Raw API response: " + responseBody);
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+            System.out.println("[Amap POI Search] API status: " + (jsonResponse.has("status") ? jsonResponse.get("status").getAsString() : "no status"));
+            System.out.println("[Amap POI Search] Has pois: " + jsonResponse.has("pois"));
             
             Map<String, Object> result = new HashMap<>();
             
@@ -169,11 +174,21 @@ public class AmapPoiService {
                                 }
                             }
                             
-                            photos.add(photoInfo);
+                            // 只添加有url的图片
+                            if (photoInfo.containsKey("url") && !photoInfo.get("url").isEmpty()) {
+                                photos.add(photoInfo);
+                            }
                         }
-                        result.put("photos", photos);
+                        
+                        // 只有当photos不为空时才添加到result中
+                        if (!photos.isEmpty()) {
+                            result.put("photos", photos);
+                            System.out.println("[Amap POI] Added " + photos.size() + " valid photos");
+                        } else {
+                            System.out.println("[Amap POI] No valid photos (no URL)");
+                        }
                     } else {
-                        System.out.println("[Amap POI] No photos found");
+                        System.out.println("[Amap POI] No photos field in response");
                     }
                     
                     // Extract rating and cost - 安全提取（高德API可能返回空数组而不是字符串）
@@ -290,6 +305,122 @@ public class AmapPoiService {
     }
     
     /**
+     * Search POI list by keyword and types
+     * 
+     * @param keyword Partial keyword
+     * @param city City name
+     * @param types POI types (e.g., "110000|120000|130000|140000")
+     * @return List of POIs
+     */
+    public List<Map<String, Object>> searchPoiList(String keyword, String city, String types) throws IOException {
+        Map<String, Object> result = searchPoi(keyword, city, types != null ? types : "110000|120000|130000|140000");
+        
+        if (result.containsKey("pois")) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> pois = (List<Map<String, Object>>) result.get("pois");
+            return pois;
+        }
+        
+        return new ArrayList<>();
+    }
+    
+    /**
+     * Search nearby attractions around a location
+     * 
+     * @param location Center location in format "longitude,latitude"
+     * @param radius Search radius in meters (e.g., 3000)
+     * @return List of nearby attractions
+     */
+    public List<Map<String, Object>> searchNearbyAttractions(String location, int radius) throws IOException {
+        String url = String.format(
+            "https://restapi.amap.com/v3/place/around?location=%s&radius=%d&types=110000|120000|130000|140000&offset=20&page=1&key=%s&extensions=all",
+            location, radius, apiKey
+        );
+        
+        System.out.println("[Amap Nearby Search] Searching near: " + location + " radius: " + radius);
+        
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Amap API call failed: " + response);
+            }
+            
+            String responseBody = response.body().string();
+            JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+            
+            List<Map<String, Object>> attractions = new ArrayList<>();
+            
+            if (jsonResponse.has("pois")) {
+                JsonArray pois = jsonResponse.getAsJsonArray("pois");
+                System.out.println("[Amap Nearby Search] Found " + pois.size() + " nearby attractions");
+                
+                for (int i = 0; i < pois.size(); i++) {
+                    JsonObject poi = pois.get(i).getAsJsonObject();
+                    Map<String, Object> attraction = new HashMap<>();
+                    
+                    if (poi.has("name") && poi.get("name").isJsonPrimitive()) {
+                        attraction.put("name", poi.get("name").getAsString());
+                    }
+                    if (poi.has("type") && poi.get("type").isJsonPrimitive()) {
+                        attraction.put("type", poi.get("type").getAsString());
+                    }
+                    if (poi.has("address") && poi.get("address").isJsonPrimitive()) {
+                        attraction.put("address", poi.get("address").getAsString());
+                    }
+                    if (poi.has("location") && poi.get("location").isJsonPrimitive()) {
+                        attraction.put("location", poi.get("location").getAsString());
+                    }
+                    if (poi.has("distance") && poi.get("distance").isJsonPrimitive()) {
+                        attraction.put("distance", poi.get("distance").getAsString());
+                    }
+                    
+                    // Extract photos
+                    if (poi.has("photos")) {
+                        List<Map<String, String>> photos = new ArrayList<>();
+                        JsonArray photosArray = poi.getAsJsonArray("photos");
+                        
+                        for (int j = 0; j < Math.min(3, photosArray.size()); j++) {
+                            JsonObject photo = photosArray.get(j).getAsJsonObject();
+                            Map<String, String> photoInfo = new HashMap<>();
+                            
+                            if (photo.has("url") && photo.get("url").isJsonPrimitive()) {
+                                photoInfo.put("url", photo.get("url").getAsString());
+                            }
+                            if (photo.has("title")) {
+                                JsonElement titleElement = photo.get("title");
+                                if (titleElement.isJsonPrimitive()) {
+                                    photoInfo.put("title", titleElement.getAsString());
+                                } else if (titleElement.isJsonArray() && titleElement.getAsJsonArray().size() > 0) {
+                                    photoInfo.put("title", titleElement.getAsJsonArray().get(0).getAsString());
+                                }
+                            }
+                            
+                            photos.add(photoInfo);
+                        }
+                        attraction.put("photos", photos);
+                    }
+                    
+                    // Extract rating
+                    if (poi.has("biz_ext") && poi.get("biz_ext").isJsonObject()) {
+                        JsonObject bizExt = poi.getAsJsonObject("biz_ext");
+                        if (bizExt.has("rating") && bizExt.get("rating").isJsonPrimitive()) {
+                            attraction.put("rating", bizExt.get("rating").getAsString());
+                        }
+                    }
+                    
+                    attractions.add(attraction);
+                }
+            }
+            
+            return attractions;
+        }
+    }
+    
+    /**
      * Geocode address to get city name
      * 
      * @param address Location address
@@ -358,113 +489,5 @@ public class AmapPoiService {
             
             return result;
         }
-    }
-    
-    /**
-     * Search nearby attractions around a specific POI
-     * 
-     * @param poiName The name of the POI to search around
-     * @param city City name
-     * @return List of nearby attractions with distance
-     */
-    public Map<String, Object> searchNearbyAttractions(String poiName, String city) throws IOException {
-        Map<String, Object> result = new HashMap<>();
-        
-        try {
-            // 首先获取目标POI的位置
-            Map<String, Object> poiInfo = searchPoiWithPhotos(poiName, city);
-            if (!poiInfo.containsKey("location")) {
-                result.put("success", false);
-                result.put("message", "未找到景点位置信息");
-                return result;
-            }
-            
-            String location = (String) poiInfo.get("location");
-            System.out.println("[Amap Nearby] Searching around: " + poiName + " at " + location);
-            
-            // 使用周边搜索API
-            String encodedLocation = java.net.URLEncoder.encode(location, "UTF-8");
-            String url = String.format(
-                "https://restapi.amap.com/v3/place/around?location=%s&keywords=&types=110000|120000|130000|140000&radius=2000&offset=10&page=1&key=%s&extensions=all",
-                encodedLocation, apiKey
-            );
-            
-            Request request = new Request.Builder()
-                    .url(url)
-                    .get()
-                    .build();
-            
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    throw new IOException("Amap API call failed: " + response);
-                }
-                
-                String responseBody = response.body().string();
-                JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
-                
-                if (jsonResponse.has("pois")) {
-                    JsonArray pois = jsonResponse.getAsJsonArray("pois");
-                    System.out.println("[Amap Nearby] Found " + pois.size() + " nearby POIs");
-                    
-                    List<Map<String, String>> attractions = new ArrayList<>();
-                    
-                    for (int i = 0; i < Math.min(10, pois.size()); i++) {
-                        JsonObject poi = pois.get(i).getAsJsonObject();
-                        String name = poi.has("name") && poi.get("name").isJsonPrimitive() 
-                            ? poi.get("name").getAsString() : "";
-                        
-                        // 跳过相同名称的景点
-                        if (name.equals(poiName)) {
-                            continue;
-                        }
-                        
-                        Map<String, String> attraction = new HashMap<>();
-                        attraction.put("name", name);
-                        
-                        if (poi.has("address") && poi.get("address").isJsonPrimitive()) {
-                            attraction.put("address", poi.get("address").getAsString());
-                        }
-                        
-                        if (poi.has("type") && poi.get("type").isJsonPrimitive()) {
-                            attraction.put("type", poi.get("type").getAsString());
-                        }
-                        
-                        // 计算距离
-                        if (poi.has("distance") && poi.get("distance").isJsonPrimitive()) {
-                            String distance = poi.get("distance").getAsString();
-                            try {
-                                int distanceMeters = Integer.parseInt(distance);
-                                if (distanceMeters < 1000) {
-                                    attraction.put("distance", distanceMeters + "米");
-                                } else {
-                                    attraction.put("distance", String.format("%.1f公里", distanceMeters / 1000.0));
-                                }
-                            } catch (NumberFormatException e) {
-                                attraction.put("distance", distance);
-                            }
-                        }
-                        
-                        if (poi.has("location") && poi.get("location").isJsonPrimitive()) {
-                            attraction.put("location", poi.get("location").getAsString());
-                        }
-                        
-                        attractions.add(attraction);
-                    }
-                    
-                    result.put("success", true);
-                    result.put("attractions", attractions);
-                    result.put("count", attractions.size());
-                } else {
-                    result.put("success", false);
-                    result.put("message", "暂无附近景点");
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("[Amap Nearby] Error: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", e.getMessage());
-        }
-        
-        return result;
     }
 }

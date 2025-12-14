@@ -78,6 +78,10 @@
       to { transform: rotate(360deg); }
     }
   </style>
+  <!-- 景点名称提取工具 -->
+  <script src="/js/attraction-name-extractor.js"></script>
+  <!-- 协作界面数据适配器 -->
+  <script src="/js/collaboration-data-adapter.js"></script>
 </head>
 <body class="bg-gray-50">
   <!-- 顶部导航 -->
@@ -88,7 +92,7 @@
           <iconify-icon icon="mdi:arrow-left" width="24"></iconify-icon>
         </button>
         <h1 class="text-xl font-bold" id="projectName">国庆七日游</h1>
-        <span class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full">协作中</span>
+        <span id="projectStatusBadge" class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full cursor-pointer hover:bg-blue-600 transition-colors" onclick="handleStatusClick()" title="点击归档项目">协作中</span>
       </div>
       <div class="flex items-center gap-3">
         <div class="flex -space-x-2" id="participantAvatars">
@@ -308,9 +312,9 @@
     </div>
   </div>
 
-  <!-- 右下角悬浮按钮：导出PDF -->
-  <div class="fixed bottom-8 right-8 z-50">
-    <button onclick="exportPdf()" class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all duration-300 hover:shadow-xl hover:scale-105">
+  <!-- 右下角悬浮按钮：导出PDF（只在项目归档后显示） -->
+  <div id="pdfExportButton" class="fixed bottom-8 right-8 z-50" style="display: none;">
+    <button onclick="exportPdf(event)" class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all duration-300 hover:shadow-xl hover:scale-105">
       <iconify-icon icon="mdi:file-pdf-box" width="24"></iconify-icon>
       <span class="font-medium">导出PDF</span>
     </button>
@@ -432,6 +436,8 @@
     
     // 全局变量
     let canEdit = false; // 当前用户是否有编辑权限（创建者或编辑者）
+        let isProjectCreator = false; // 当前用户是否是创建者
+        let projectStatus = '协作中'; // 项目状态
     let currentRouteData = null; // 当前路线数据
     let currentDayAttractions = []; // 当前天数的景点列表
     let destinationCity = ''; // 项目目的地城市
@@ -441,6 +447,7 @@
     let projectRequirements = []; // 所有用户的需求参数
     let activityBudgets = {}; // 每个活动的预算 { 'day-index': budget }
     let dailyBudgetPlan = 0; // 创建者设定的每日预算
+    let isEditingBudget = false; // 标记用户是否正在编辑预算
     
     // 检查projectId是否存在
     if (!projectId) {
@@ -460,7 +467,8 @@
       try {
         const response = await fetch(`/api/travel-projects/${projectId}`);
         if (response.ok) {
-          const project = await response.json();
+          const projectResult = await response.json();
+          const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
           // 更新项目名称
           document.getElementById('projectName').textContent = project.projectName;
           
@@ -477,6 +485,17 @@
           
           // 检查当前用户是否为创建者
           const isCreator = project.creatorId === currentUser.id;
+          isProjectCreator = isCreator; // 设置全局变量
+          
+          // 获取项目状态并更新显示
+          projectStatus = project.status || '协作中';
+          updateStatusBadge();
+          
+          // 如果项目已归档，禁止任何编辑
+          if (projectStatus === '已归档') {
+            canEdit = false;
+            return; // 直接返回，不再检查权限
+          }
           
           if (isCreator) {
             // 创建者显示权限管理按钮
@@ -646,7 +665,8 @@
           return;
         }
         
-        const project = await projectResponse.json();
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         console.log('Project loaded:', project);
         const currentRouteId = project.currentRouteId;
         
@@ -742,7 +762,8 @@
       try {
         // 获取项目信息以计算具体日期
         const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
-        const project = await projectResponse.json();
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         const startDate = new Date(project.startDate);
         
         const dailyItinerary = JSON.parse(currentRouteData.dailyItinerary);
@@ -760,15 +781,12 @@
         // 提取景点（过滤掉餐饮）
         const attractions = [];
         dayData.activities.forEach((activity, index) => {
-          // 解析活动字符串
-          const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
-          let timeRange = '';
-          let content = activity;
-          
-          if (timeMatch) {
-            timeRange = timeMatch[1];
-            content = timeMatch[2];
-          }
+          // 使用适配器解析activity
+          const parsed = parseActivity(activity);
+          const activityText = parsed.text;
+          const timeRange = parsed.timeRange;
+          const content = parsed.content;
+          const poiInfo = parsed.poiInfo;
           
           // 只保留景点相关的（包含"景点”关键词或时间在非用餐时段）
           if (content.includes('景点：') || 
@@ -777,15 +795,16 @@
               content.includes('晚上：') ||
               (!content.includes('早餐') && !content.includes('午餐') && !content.includes('晚餐'))) {
             
-            // 提取景点名称
-            const attractionName = extractAttractionName(content);
+            // 优先使用poiInfo中的名称，否则提取景点名称
+            const attractionName = poiInfo && poiInfo.name ? poiInfo.name : extractAttractionName(content);
             if (attractionName) {
               attractions.push({
                 index: index,
                 name: attractionName,
                 time: timeRange,
-                fullActivity: activity,
-                rawContent: content
+                fullActivity: activityText,
+                rawContent: content,
+                poiInfo: poiInfo // 保存POI信息
               });
             }
           }
@@ -924,18 +943,16 @@
       
       // 解析每个活动
       const parsedActivities = activities.map((activity, index) => {
-        const timeMatch = activity.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
-        let timeRange = '未设置';
-        let content = activity;
+        // 使用适配器解析activity
+        const parsed = parseActivity(activity);
+        const activityText = parsed.text;
+        let timeRange = parsed.timeRange || '未设置';
+        let content = parsed.content;
+        const poiInfo = parsed.poiInfo;
         let activityType = 'other'; // attraction, meal, other
         let icon = 'mdi:map-marker';
         let bgColor = 'bg-gray-100';
         let textColor = 'text-gray-600';
-        
-        if (timeMatch) {
-          timeRange = timeMatch[1];
-          content = timeMatch[2];
-        }
         
         // 判断活动类型
         if (content.includes('早餐') || content.includes('午餐') || content.includes('晚餐')) {
@@ -950,20 +967,25 @@
           textColor = 'text-blue-600';
         }
         
-        // 提取名称（简化版）
-        let displayName = content;
-        displayName = displayName.replace(/^景点[::：]/, '');
-        displayName = displayName.replace(/^[上下]午[::：]/, '');
-        displayName = displayName.replace(/^晚上[::：]/, '');
-        displayName = displayName.replace(/^[早午晚]餐[::：]/, '');
-        
-        // 提取【】中的内容
-        const bracketMatch = displayName.match(/【([^】]+)】/);
-        if (bracketMatch) {
-          displayName = bracketMatch[1];
+        // 提取名称（优先使用poiInfo.name）
+        let displayName = '';
+        if (poiInfo && poiInfo.name) {
+          displayName = poiInfo.name;
         } else {
-          // 只取第一个逗号前的内容
-          displayName = displayName.split(/[,，。]/)[ 0];
+          displayName = content;
+          displayName = displayName.replace(/^景点[::：]/, '');
+          displayName = displayName.replace(/^[上下]午[::：]/, '');
+          displayName = displayName.replace(/^晚上[::：]/, '');
+          displayName = displayName.replace(/^[早午晚]餐[::：]/, '');
+          
+          // 提取【】中的内容
+          const bracketMatch = displayName.match(/【([^】]+)】/);
+          if (bracketMatch) {
+            displayName = bracketMatch[1];
+          } else {
+            // 只取第一个逗号前的内容
+            displayName = displayName.split(/[,，。]/)[ 0];
+          }
         }
         
         return {
@@ -1020,6 +1042,8 @@
                          placeholder="预算" 
                          value="${budgetValue}"
                          ${canEdit ? '' : 'disabled'}
+                         onfocus="isEditingBudget = true"
+                         onblur="isEditingBudget = false"
                          onchange="updateActivityBudget('${budgetKey}', this.value)"
                          class="w-full text-xs px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500 ${canEdit ? '' : 'bg-gray-50 cursor-not-allowed'}"
                          min="0"
@@ -1069,11 +1093,23 @@
     // 加载预算数据
     async function loadBudgets() {
       try {
+        // 检查路线数据是否存在
+        if (!currentRouteData || !currentRouteData.id) {
+          console.log('[Budget] No route data available, skipping budget load');
+          activityBudgets = {};
+          return;
+        }
+        
         const response = await fetch(`/api/ai-generated-routes/${currentRouteData.id}/budgets`);
         if (response.ok) {
           const budgets = await response.json();
           activityBudgets = budgets || {};
           console.log('[Budget] Loaded:', activityBudgets);
+          
+          // 刷新预算显示（只在用户不在编辑时）
+          if (!isEditingBudget) {
+            updateBudgetInputs();
+          }
         }
       } catch (error) {
         console.error('[Budget] Error loading:', error);
@@ -1139,6 +1175,34 @@
         warningEl.classList.add('hidden');
       }
     }
+    
+    // 更新预算输入框的值（用于同步其他用户的修改）
+    function updateBudgetInputs() {
+      const selectedDay = parseInt(document.getElementById('daySelector').value);
+      
+      // 遍历所有预算输入框并更新其值
+      document.querySelectorAll('input[type="number"][onchange^="updateActivityBudget"]').forEach(input => {
+        // 跳过正在获得焦点的输入框
+        if (document.activeElement === input) {
+          return;
+        }
+        
+        // 从 onchange 属性中提取 budgetKey
+        const onchangeAttr = input.getAttribute('onchange');
+        const keyMatch = onchangeAttr.match(/updateActivityBudget\('([^']+)'/);
+        if (keyMatch) {
+          const budgetKey = keyMatch[1];
+          const budgetValue = activityBudgets[budgetKey] || '';
+          if (input.value !== budgetValue.toString()) {
+            input.value = budgetValue;
+            console.log(`[Budget] Updated input ${budgetKey} to ${budgetValue}`);
+          }
+        }
+      });
+      
+      // 更新预算统计
+      updateBudgetSummary(selectedDay);
+    }
     async function showAttractionDetail(index) {
       const attraction = currentDayAttractions[index];
       if (!attraction) return;
@@ -1178,46 +1242,111 @@
       await loadNearbyAttractions(attraction);
     }
     
-    // 加载高德景点信息（只获取地址）
+    // 加载高德景点信息（优先使用已有poiInfo）
     async function loadAmapInfo(attraction) {
       try {
+        // 如果attraction已经有poiInfo，直接使用
+        if (attraction.poiInfo && Object.keys(attraction.poiInfo).length > 0) {
+          const data = attraction.poiInfo;
+          console.log('[loadAmapInfo] Using cached poiInfo:', JSON.stringify(data, null, 2));
+          
+          // 使用已缓存的POI信息
+          if (data.address) {
+            document.getElementById('attractionAddress').textContent = data.address;
+          } else {
+            document.getElementById('attractionAddress').textContent = '地址信息暂无';
+          }
+          
+          // 检查opentime字段
+          console.log('[loadAmapInfo] opentime:', data.opentime, 'type:', typeof data.opentime);
+          if (data.opentime && data.opentime !== '[]' && data.opentime.trim() !== '') {
+            document.getElementById('openingHours').textContent = data.opentime;
+          } else {
+            // 对于公园类型，显示全天开放
+            if (data.type && data.type.includes('公园')) {
+              document.getElementById('openingHours').textContent = '全天开放';
+            } else {
+              document.getElementById('openingHours').textContent = '请查看官方信息';
+            }
+          }
+          
+          // 检查ticket和cost字段
+          console.log('[loadAmapInfo] ticket:', data.ticket, 'cost:', data.cost, 'type:', data.type);
+          if (data.ticket && data.ticket !== '[]' && data.ticket.trim() !== '') {
+            document.getElementById('ticketInfo').textContent = data.ticket;
+          } else if (data.cost && data.cost !== '[]' && data.cost.trim() !== '') {
+            document.getElementById('ticketInfo').textContent = '约' + data.cost + '元';
+          } else {
+            // 对于公园类型，显示免费
+            if (data.type && data.type.includes('公园')) {
+              document.getElementById('ticketInfo').textContent = '免费开放';
+            } else {
+              document.getElementById('ticketInfo').textContent = '请查看官方信息';
+            }
+          }
+          
+          return;
+        }
+        
+        // 没有缓存，调用API获取
         const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
-        const project = await projectResponse.json();
+        const projectResult = await projectResponse.json();
+        
+        // 处理后端返回的数据格式
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         const city = project.destination;
         
         console.log('Loading Amap info for:', attraction.name, 'in', city);
         
-        const response = await fetch(`/api/amap-test/poi-detail?keyword=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`);
+        const url = `/api/amap-test/poi-detail?keyword=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`;
+        console.log('Request URL:', url);
+        
+        const response = await fetch(url);
+        console.log('Response status:', response.status, 'OK:', response.ok);
+        console.log('Response headers:', response.headers.get('content-type'));
+        
         if (!response.ok) {
           console.warn('Amap API response not OK:', response.status);
           throw new Error('Failed to fetch');
         }
         
         const data = await response.json();
-        console.log('Amap API returned:', data);
+        console.log('Amap API returned:', JSON.stringify(data, null, 2));
+        console.log('Has address:', !!data.address, 'Has name:', !!data.name, 'Has location:', !!data.location);
         
         // 优先使用高德返回的地址
         if (data && data.address) {
-          // 直接使用高德返回的地址
           console.log('Using Amap address:', data.address);
           document.getElementById('attractionAddress').textContent = data.address;
         } else if (data && data.name) {
-          // 有POI信息但没有地址
           console.log('POI found but no address available');
           document.getElementById('attractionAddress').textContent = '地址信息暂无';
         } else {
-          // 没有找到景点信息
-          console.log('No POI found');
+          console.log('No POI found, data keys:', Object.keys(data));
           document.getElementById('attractionAddress').textContent = '未找到景点';
         }
         
-        // 设置开放时间和门票（从行程中提取）
-        extractOpeningHoursAndTicket(attraction.rawContent);
+        // 使用高德API返回的开放时间和门票信息
+        if (data && data.opentime) {
+          document.getElementById('openingHours').textContent = data.opentime;
+        } else {
+          document.getElementById('openingHours').textContent = '请查看官方信息';
+        }
+        
+        // 门票信息
+        if (data && data.ticket) {
+          document.getElementById('ticketInfo').textContent = data.ticket;
+        } else if (data && data.cost) {
+          document.getElementById('ticketInfo').textContent = '约' + data.cost + '元';
+        } else {
+          document.getElementById('ticketInfo').textContent = '请查看官方信息';
+        }
         
       } catch (error) {
         console.error('Error loading Amap info:', error);
         document.getElementById('attractionAddress').textContent = '暂无定位信息';
-        extractOpeningHoursAndTicket(attraction.rawContent);
+        document.getElementById('openingHours').textContent = '请查看官方信息';
+        document.getElementById('ticketInfo').textContent = '请查看官方信息';
       }
     }
     
@@ -1244,7 +1373,8 @@
     async function generateAIIntroduction(attraction) {
       try {
         const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
-        const project = await projectResponse.json();
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         const city = project.destination;
         
         const response = await fetch(`/api/amap-test/attraction-intro?name=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`);
@@ -1290,7 +1420,8 @@
       
       try {
         const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
-        const project = await projectResponse.json();
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         const city = project.destination;
         
         // 调用高德API搜索附近景点
@@ -1515,7 +1646,8 @@
         await loadProjectParticipants();
         
         // 重新检查当前用户的编辑权限（如果不是创建者）
-        const project = await fetch(`/api/travel-projects/${projectId}`).then(r => r.json());
+        const projectResult = await fetch(`/api/travel-projects/${projectId}`).then(r => r.json());
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         const isCreator = project.creatorId === currentUser.id;
         
         if (!isCreator) {
@@ -1551,6 +1683,112 @@
       } catch (error) {
         console.error('Error saving permissions:', error);
         alert('❌ 权限修改失败，请重试');
+      }
+    }
+    
+    // 更新状态徽章显示
+    function updateStatusBadge() {
+      const badge = document.getElementById('projectStatusBadge');
+      if (!badge) return;
+      
+      badge.textContent = projectStatus;
+      
+      if (projectStatus === '已归档') {
+        badge.className = 'bg-gray-500 text-white text-xs px-3 py-1 rounded-full';
+        badge.title = '项目已归档，无法编辑';
+        badge.style.cursor = 'default';
+        badge.onclick = null;
+        // 禁用编辑
+        canEdit = false;
+        disableAllEditing();
+        // 显示PDF导出按钮
+        const pdfBtn = document.getElementById('pdfExportButton');
+        if (pdfBtn) {
+          pdfBtn.style.display = 'block';
+        }
+      } else {
+        badge.className = 'bg-blue-500 text-white text-xs px-3 py-1 rounded-full cursor-pointer hover:bg-blue-600 transition-colors';
+        badge.title = isProjectCreator ? '点击归档项目' : '项目状态';
+        badge.style.cursor = isProjectCreator ? 'pointer' : 'default';
+        badge.onclick = isProjectCreator ? handleStatusClick : null;
+        // 隐藏PDF导出按钮
+        const pdfBtn = document.getElementById('pdfExportButton');
+        if (pdfBtn) {
+          pdfBtn.style.display = 'none';
+        }
+      }
+    }
+    
+    // 禁用所有编辑功能
+    function disableAllEditing() {
+      // 隐藏新增按钮
+      const addActivityBtn = document.getElementById('addActivityBtn');
+      if (addActivityBtn) {
+        addActivityBtn.classList.add('hidden');
+        addActivityBtn.style.display = 'none';
+      }
+      
+      // 隐藏所有编辑/删除按钮
+      document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => {
+        btn.style.display = 'none';
+      });
+      
+      // 禁用预算输入框
+      document.querySelectorAll('.budget-input').forEach(input => {
+        input.disabled = true;
+      });
+    }
+    
+    // 处理状态点击
+    function handleStatusClick() {
+      if (!isProjectCreator) {
+        alert('只有创建者可以归档项目');
+        return;
+      }
+      
+      if (projectStatus === '已归档') {
+        alert('项目已归档，无法再次操作');
+        return;
+      }
+      
+      // 第一次确认
+      const firstConfirm = confirm('确定要将项目归档吗？\n\n归档后所有成员（包括创建者）将无法编辑该项目。');
+      if (!firstConfirm) return;
+      
+      // 第二次确认
+      const secondConfirm = confirm('再次确认：您确定要归档该项目吗？\n\n此操作不可撤销！');
+      if (!secondConfirm) return;
+      
+      // 执行归档
+      archiveProject();
+    }
+    
+    // 归档项目
+    async function archiveProject() {
+      try {
+        const response = await fetch(`/api/travel-projects/${projectId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: '已归档'
+          })
+        });
+        
+        if (response.ok) {
+          projectStatus = '已归档';
+          updateStatusBadge();
+          alert('✅ 项目已成功归档');
+          // 重新加载页面以确保所有UI更新
+          location.reload();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          alert('归档失败：' + (errorData.message || '请重试'));
+        }
+      } catch (error) {
+        console.error('Error archiving project:', error);
+        alert('归档失败：' + error.message);
       }
     }
     
@@ -1821,7 +2059,7 @@
     }
         
     // 导出PDF功能
-    async function exportPdf() {
+    async function exportPdf(event) {
       if (!projectId) {
         alert('项目 ID 不存在');
         return;
@@ -1831,10 +2069,13 @@
         console.log('[PDF Export] 开始下载PDF...');
             
         // 显示加载状态
-        const btn = event.target.closest('button');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<iconify-icon icon="mdi:loading" class="animate-spin" width="24"></iconify-icon><span class="font-medium">生成中...</span>';
-        btn.disabled = true;
+        const btn = event && event.target ? event.target.closest('button') : document.querySelector('[onclick*="exportPdf"]');
+        let originalText = '';
+        if (btn) {
+          originalText = btn.innerHTML;
+          btn.innerHTML = '<iconify-icon icon="mdi:loading" class="animate-spin" width="24"></iconify-icon><span class="font-medium">生成中...</span>';
+          btn.disabled = true;
+        }
             
         // 调用后端API
         const response = await fetch(`/api/pdf/itinerary/${projectId}`);
@@ -1861,17 +2102,20 @@
         console.log('[PDF Export] PDF下载成功');
             
         // 恢复按钮状态
-        btn.innerHTML = originalText;
-        btn.disabled = false;
+        if (btn) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
             
       } catch (error) {
         console.error('[PDF Export] 导出PDF失败:', error);
         alert('PDF导出失败，请稍后重试');
             
         // 恢复按钮状态
-        const btn = event.target.closest('button');
-        btn.innerHTML = '<iconify-icon icon="mdi:file-pdf-box" width="24"></iconify-icon><span class="font-medium">导出PDF</span>';
-        btn.disabled = false;
+        if (btn) {
+          btn.innerHTML = '<iconify-icon icon="mdi:file-pdf-box" width="24"></iconify-icon><span class="font-medium">导出PDF</span>';
+          btn.disabled = false;
+        }
       }
     }
 
@@ -2090,8 +2334,12 @@
         
         // 按时间排序
         localItinerary[dayIndex].activities.sort((a, b) => {
-          const timeA = a.match(/^(\d{2}:\d{2})/);
-          const timeB = b.match(/^(\d{2}:\d{2})/);
+          // 使用适配器提取文本（兼容新旧格式）
+          const textA = typeof a === 'object' && a.text ? a.text : a;
+          const textB = typeof b === 'object' && b.text ? b.text : b;
+          
+          const timeA = textA.match(/^(\d{2}:\d{2})/);
+          const timeB = textB.match(/^(\d{2}:\d{2})/);
           if (timeA && timeB) {
             return timeA[1].localeCompare(timeB[1]);
           }
@@ -2257,7 +2505,8 @@
         // 获取每日预算
         const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
         if (projectResponse.ok) {
-          const project = await projectResponse.json();
+          const projectResult = await projectResponse.json();
+          const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
           // 计算每日平均预算
           if (project.totalBudget && project.days) {
             dailyBudgetPlan = project.totalBudget / project.days;
@@ -2327,6 +2576,10 @@
           console.log('[Refresh] Got route from backend, dailyItinerary length:', route.dailyItinerary?.length || 0);
           currentRouteData = route;
           dailyItinerary = JSON.parse(route.dailyItinerary);
+          
+          // 重新加载预算数据
+          await loadBudgets();
+          console.log('[Refresh] Budget data reloaded');
           
           // 显示当前天数的活动数量
           const selectedDay = parseInt(document.getElementById('daySelector').value);

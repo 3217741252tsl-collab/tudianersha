@@ -411,7 +411,6 @@
             </a>
             <div class="navbar-menu">
                 <a href="/index.html">返回首页</a>
-                <a href="#" onclick="auth.logout(); return false;">退出登录</a>
             </div>
         </div>
     </nav>
@@ -667,7 +666,7 @@
                 <!-- Action Buttons -->
                 <div class="form-actions">
                     <button type="button" class="btn-lg btn-secondary" onclick="navigate('/index.html')">取消</button>
-                    <button type="submit" class="btn-lg btn-primary">提交并生成AI方案</button>
+                    <button type="submit" class="btn-lg btn-primary">前往邀请好友</button>
                 </div>
             </form>
         </div>
@@ -1362,6 +1361,9 @@
                         endInput.style.cursor = 'not-allowed';
                     }
                     
+                    // 加载创建者的预算设置
+                    await loadCreatorBudget(projectId);
+                    
                     // 尝试加载用户的草稿（如果存在）
                     await loadDraftData(projectId);
                     
@@ -1370,6 +1372,49 @@
                 }
             } catch (error) {
                 console.error('Error loading shared project:', error);
+            }
+        }
+        
+        // 加载创建者的预算设置
+        async function loadCreatorBudget(projectId) {
+            try {
+                // 获取项目的所有需求参数
+                const response = await fetch(`/api/requirement-parameters/project/${projectId}/all`);
+                if (response.ok) {
+                    const allRequirements = await response.json();
+                    
+                    // 查找创建者的需求参数（通过查找 travel-participants 表中权限为"创建者"的用户）
+                    const participantsResponse = await fetch(`/api/travel-participants/project/${projectId}`);
+                    if (participantsResponse.ok) {
+                        const participants = await participantsResponse.json();
+                        const creator = participants.find(p => p.permission === '创建者');
+                        
+                        if (creator) {
+                            // 查找创建者的需求参数
+                            const creatorRequirement = allRequirements.find(r => r.userId === creator.userId);
+                            
+                            if (creatorRequirement && creatorRequirement.budgetBreakdown) {
+                                // 解析创建者的预算明细
+                                const creatorBudgetItems = JSON.parse(creatorRequirement.budgetBreakdown);
+                                
+                                // 更新预算项数组
+                                budgetItems = creatorBudgetItems;
+                                
+                                // 重新渲染预算项列表
+                                renderBudgetItems();
+                                
+                                // 更新总预算显示
+                                updateTotalBudget();
+                                
+                                console.log('[Budget] Loaded creator budget:', budgetItems);
+                            } else {
+                                console.log('[Budget] Creator budget breakdown not found, using defaults');
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[Budget] Error loading creator budget:', error);
             }
         }
         
@@ -1816,7 +1861,7 @@
             
             // Create travel project
             const now = new Date().toISOString();
-            const projectResult = await post('/travel-projects', {
+            const projectResponse = await post('/travel-projects', {
                 projectName,
                 destination,
                 days,
@@ -1829,11 +1874,12 @@
                 totalBudget: totalBudget  // 添加总预算
             });
             
-            // 后端直接返回项目对象，不需要检查 success 字段
-            if (!projectResult || !projectResult.id) {
+            // 检查响应
+            if (!projectResponse.success || !projectResponse.data || !projectResponse.data.id) {
                 throw new Error('创建项目失败');
             }
             
+            const projectResult = projectResponse.data;
             const projectId = projectResult.id;
             currentProjectId = projectId;
             
@@ -1874,25 +1920,13 @@
                 joinTime: now
             });
             
-            // Generate AI route
-            await post('/ai-generated-routes', {
-                projectId,
-                routeContent: JSON.stringify({
-                    title: `${destination}${days}日游推荐路线`,
-                    description: '根据您的需求为您生成的旅行路线',
-                    highlights: selectedInterests,
-                    wishlist: wishlist,
-                    dislikeList: dislikeList,
-                    dailyBudget: budgetItems
-                }),
-                generatedTime: now,
-                interestTags: selectedInterests.join(',')
-            });
+            // 注意：AI路线将在participants-status页面由用户点击按钮后通过Kimi AI生成
+            // 不在这里预先创建
             
             loading.hide();
-            showSuccess('创建成功！正在跳转...');
+            showSuccess('创建成功！正在跳转到邀请页面...');
             
-            // 创建者直接跳转到查看成员页面
+            // 跳转到邀请用户页面（participants-status.html）
             setTimeout(() => {
                 navigate(`/participants-status.html?id=${projectId}`);
             }, 1500);
@@ -1946,6 +1980,30 @@
             
             // Show the share link section
             document.getElementById('shareLinkSection').style.display = 'block';
+        }
+        
+        // 显示“开始生成AI路线”按钮
+        function showAIGenerateButton(projectId) {
+            // 在分享链接区域下方添加按钮
+            const shareLinkSection = document.getElementById('shareLinkSection');
+            
+            // 检查是否已经有按钮
+            if (document.getElementById('goToAIRouteBtn')) return;
+            
+            const btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;';
+            btnContainer.innerHTML = `
+                <button type="button" id="goToAIRouteBtn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    🤖 开始生成AI路线
+                </button>
+                <p style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 8px;">点击后将跳转到AI路线选择页面</p>
+            `;
+            shareLinkSection.appendChild(btnContainer);
+            
+            // 绑定点击事件
+            document.getElementById('goToAIRouteBtn').addEventListener('click', function() {
+                navigate(`/route-selection.html?projectId=${projectId}`);
+            });
         }
         
         // Copy share link

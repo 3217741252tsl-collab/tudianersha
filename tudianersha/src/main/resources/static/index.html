@@ -161,17 +161,6 @@
         </div>
         <div class="flex flex-col items-center md:items-end">
           <p class="text-gray-600">© 2025 途点儿啥 AI旅行规划平台</p>
-          <div class="mt-3 flex space-x-6">
-            <a class="text-gray-500 hover:text-blue-500" href="#">
-              <iconify-icon icon="mdi:wechat" width="24"></iconify-icon>
-            </a>
-            <a class="text-gray-500 hover:text-blue-500" href="#">
-              <iconify-icon icon="mdi:weibo" width="24"></iconify-icon>
-            </a>
-            <a class="text-gray-500 hover:text-blue-500" href="#">
-              <iconify-icon icon="mdi:email" width="24"></iconify-icon>
-            </a>
-          </div>
         </div>
       </div>
     </div>
@@ -188,6 +177,10 @@
 
     // 检查登录状态
     console.log('检查登录状态...');
+    console.log('auth 对象:', auth);
+    console.log('auth.isLoggedIn():', auth.isLoggedIn());
+    console.log('auth.getUser():', auth.getUser());
+    
     if (!auth.isLoggedIn()) {
       console.log('未登录，跳转到登录页');
       window.location.href = '/login.html';
@@ -197,6 +190,7 @@
     console.log('已登录，获取用户信息');
     currentUser = auth.getUser();
     console.log('当前用户:', currentUser);
+    console.log('currentUser.username:', currentUser ? currentUser.username : 'undefined');
 
     // 页面加载完成后初始化
     document.addEventListener('DOMContentLoaded', () => {
@@ -206,19 +200,41 @@
 
     // 初始化页面
     async function init() {
-      // 显示用户名
-      const userNameEl = document.getElementById('userName');
-      const welcomeTextEl = document.getElementById('welcomeText');
-      const userAvatarEl = document.getElementById('userAvatar');
-      
-      if (userNameEl) userNameEl.textContent = currentUser.username;
-      if (welcomeTextEl) welcomeTextEl.textContent = `欢迎回来，${currentUser.username}！`;
-      if (userAvatarEl) userAvatarEl.textContent = currentUser.username.charAt(0).toUpperCase();
+      try {
+        console.log('[init] 开始初始化');
+        console.log('[init] currentUser:', currentUser);
+        
+        // 检查currentUser是否有效
+        if (!currentUser || !currentUser.username) {
+          console.error('[init] currentUser无效，重新登录');
+          alert('用户信息无效，请重新登录');
+          auth.logout();
+          return;
+        }
+        
+        console.log('[init] 用户信息有效，开始显示用户名');
+        
+        // 显示用户名
+        const userNameEl = document.getElementById('userName');
+        const welcomeTextEl = document.getElementById('welcomeText');
+        const userAvatarEl = document.getElementById('userAvatar');
+        
+        if (userNameEl) userNameEl.textContent = currentUser.username;
+        if (welcomeTextEl) welcomeTextEl.textContent = `欢迎回来，${currentUser.username}！`;
+        if (userAvatarEl) userAvatarEl.textContent = currentUser.username.charAt(0).toUpperCase();
 
-      await loadProjects();
-      
-      // 绑定事件
-      bindEvents();
+        console.log('[init] 开始加载项目');
+        await loadProjects();
+        
+        console.log('[init] 开始绑定事件');
+        // 绑定事件
+        bindEvents();
+        
+        console.log('[init] 初始化完成');
+      } catch (error) {
+        console.error('[init] 初始化错误:', error);
+        alert('页面初始化失败：' + error.message);
+      }
     }
 
     // 绑定所有事件
@@ -296,17 +312,23 @@
           get('/project-participants')
         ]);
 
-        // 后端直接返回数组，不是 ApiResponse 格式
-        if (Array.isArray(projectsResult)) {
+        // 处理后端返回的数据：可能是数组或ApiResponse格式
+        if (projectsResult.success && Array.isArray(projectsResult.data)) {
+          allProjects = projectsResult.data;
+        } else if (Array.isArray(projectsResult)) {
           allProjects = projectsResult;
         }
 
-        if (Array.isArray(participantsResult)) {
+        if (participantsResult.success && Array.isArray(participantsResult.data)) {
+          allParticipants = participantsResult.data;
+        } else if (Array.isArray(participantsResult)) {
           allParticipants = participantsResult;
         }
         
         // Also load project-participants for collaboration tracking
-        if (Array.isArray(projectParticipantsResult)) {
+        if (projectParticipantsResult.success && Array.isArray(projectParticipantsResult.data)) {
+          window.projectParticipants = projectParticipantsResult.data;
+        } else if (Array.isArray(projectParticipantsResult)) {
           window.projectParticipants = projectParticipantsResult;
         }
 
@@ -343,10 +365,8 @@
         }
         // 参与者（包括所有非创建者的参与情况）
         else if (participant || projectParticipant) {
-          // Only show if project status is '协作中' or if user has submitted requirements
-          if (project.status === '协作中' || project.status === '进行中') {
-            participatingProjects.push(project);
-          }
+          // 参与者可以看到所有他们参与的项目
+          participatingProjects.push(project);
         }
       });
 

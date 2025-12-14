@@ -18,12 +18,19 @@ spring:
     init:
       mode: never
 
-  # Mail Configuration for QQ Email
+  # Mail Configuration
+  # 请按以下步骤配置:
+  # 1. 登录 QQ 邮箱 https://mail.qq.com
+  # 2. 设置 → 账户 → POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务
+  # 3. 开启 SMTP 服务
+  # 4. 生成授权码（16位字符）
+  # 5. 将下面的 your-email@qq.com 替换为你的QQ邮箱
+  # 6. 将 your-smtp-authorization-code 替换为生成的授权码
   mail:
     host: smtp.qq.com
     port: 587
-    username: 2230845112@qq.com
-    password: snqivklkwjeieabj
+    username: 2230845112@qq.com         # 修改为你的QQ邮箱
+    password: snqivklkwjeieabj  # 修改为QQ邮箱授权码（不是登录密码）
     properties:
       mail:
         smtp:
@@ -54,4 +61,9 @@ kimi:
 # Amap API Configuration
 amap:
   api:
+    key: 4290f3a6e308a95a70bc29f5577a6a21  # Web服务API Key
+  web:
     key: 4290f3a6e308a95a70bc29f5577a6a21
+  js:
+    key: bf0e97cd7a4c3c6aaa8ecf3dd7485381
+    security-code: 07ec5b4c0314b96e44928e25dede60f7

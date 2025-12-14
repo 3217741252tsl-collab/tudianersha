@@ -168,15 +168,25 @@ public class ItineraryPdfService {
 
                     for (int actIdx = 0; actIdx < activities.size(); actIdx++) {
                         JsonElement activityElement = activities.get(actIdx);
-                        String activity = activityElement.getAsString();
+                        
+                        // 处理新的数据结构：{text: "...", poiInfo: {...}} 或者纯字符串
+                        String activity;
+                        if (activityElement.isJsonObject()) {
+                            JsonObject activityObj = activityElement.getAsJsonObject();
+                            activity = activityObj.has("text") ? activityObj.get("text").getAsString() : activityElement.toString();
+                        } else {
+                            activity = activityElement.getAsString();
+                        }
                         
                         // 提取时间和活动内容
                         String time = "";
                         String content = activity;
-                        int colonIndex = activity.indexOf(":");
-                        if (colonIndex > 0 && colonIndex < 10) {
-                            time = activity.substring(0, colonIndex).trim();
-                            content = activity.substring(colonIndex + 1).trim();
+                        // 使用正则表达式匹配时间段格式：HH:MM-HH:MM
+                        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\d{2}:\\d{2}-\\d{2}:\\d{2})\\s*(.*)");
+                        java.util.regex.Matcher matcher = pattern.matcher(activity);
+                        if (matcher.matches()) {
+                            time = matcher.group(1);
+                            content = matcher.group(2);
                         }
                         
                         // 获取预算
