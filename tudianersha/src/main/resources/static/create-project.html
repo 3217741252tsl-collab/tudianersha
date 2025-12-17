@@ -1693,12 +1693,16 @@
             const destinationInput = document.getElementById('destinationInput');
             const startDateInput = document.getElementById('startDateInput');
             const endDateInput = document.getElementById('endDateInput');
+            const departureInput = document.getElementById('departureInput');
+            const departureTimeInput = document.getElementById('departureTimeInput');
             
             if (!isCreator) {
-                // 非创建者：禁用这些字段
+                // 非创建者：禁用这些字段（目的地、日期、出发地、出发时间）
                 destinationInput.disabled = true;
                 startDateInput.disabled = true;
                 endDateInput.disabled = true;
+                if (departureInput) departureInput.disabled = true;
+                if (departureTimeInput) departureTimeInput.disabled = true;
                 
                 // 添加禁用样式
                 destinationInput.style.backgroundColor = '#f9fafb';
@@ -1707,6 +1711,14 @@
                 startDateInput.style.cursor = 'not-allowed';
                 endDateInput.style.backgroundColor = '#f9fafb';
                 endDateInput.style.cursor = 'not-allowed';
+                if (departureInput) {
+                    departureInput.style.backgroundColor = '#f9fafb';
+                    departureInput.style.cursor = 'not-allowed';
+                }
+                if (departureTimeInput) {
+                    departureTimeInput.style.backgroundColor = '#f9fafb';
+                    departureTimeInput.style.cursor = 'not-allowed';
+                }
             }
         }
         
