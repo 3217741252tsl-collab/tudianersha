@@ -42,6 +42,43 @@ public class AmapPoiService {
      * @return POI info including photos
      */
     public Map<String, Object> searchPoiWithPhotos(String keyword, String city) throws IOException {
+        // 最多重试3次，应对高德API限流
+        int maxRetries = 3;
+        int retryCount = 0;
+        
+        while (retryCount < maxRetries) {
+            try {
+                Map<String, Object> result = doSearchPoiWithPhotos(keyword, city);
+                if (result != null && !result.isEmpty()) {
+                    return result;
+                }
+                // 如果返回空结果，可能是限流，等待后重试
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    System.out.println("[Amap POI] 未获取到数据，第" + retryCount + "次重试，等待500ms...");
+                    Thread.sleep(500); // 等待500ms后重试
+                }
+            } catch (Exception e) {
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    System.out.println("[Amap POI] 请求失败，第" + retryCount + "次重试，等待500ms...");
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                } else {
+                    throw new IOException("高德API请求失败: " + e.getMessage());
+                }
+            }
+        }
+        return new HashMap<>();
+    }
+    
+    /**
+     * 实际执行POI搜索
+     */
+    private Map<String, Object> doSearchPoiWithPhotos(String keyword, String city) throws IOException {
         // 优先搜索景点类型
         // URL encode parameters to handle Chinese characters
         String encodedKeyword = java.net.URLEncoder.encode(keyword, "UTF-8");
@@ -69,7 +106,17 @@ public class AmapPoiService {
             String responseBody = response.body().string();
             System.out.println("[Amap POI Search] Raw API response: " + responseBody);
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
-            System.out.println("[Amap POI Search] API status: " + (jsonResponse.has("status") ? jsonResponse.get("status").getAsString() : "no status"));
+            
+            // 检查是否限流
+            String status = jsonResponse.has("status") ? jsonResponse.get("status").getAsString() : "1";
+            String infocode = jsonResponse.has("infocode") ? jsonResponse.get("infocode").getAsString() : "";
+            
+            if ("0".equals(status) && "10021".equals(infocode)) {
+                System.out.println("[Amap POI Search] ✗ 限流错误 (CUQPS_HAS_EXCEEDED_THE_LIMIT)，将重试...");
+                return new HashMap<>(); // 返回空结果触发重试
+            }
+            
+            System.out.println("[Amap POI Search] API status: " + status);
             System.out.println("[Amap POI Search] Has pois: " + jsonResponse.has("pois"));
             
             Map<String, Object> result = new HashMap<>();

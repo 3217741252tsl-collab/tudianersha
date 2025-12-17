@@ -453,6 +453,36 @@
                             </div>
                         </div>
                         
+                        <!-- 出发地（限制交通站） -->
+                        <div style="position: relative;">
+                            <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">
+                                🚉 出发地 <span style="color: #9ca3af; font-weight: 400; font-size: 12px;">(可选，限火车站/汽车站/机场/公交站)</span>
+                            </label>
+                            <input type="text" id="departureInput" placeholder="输入并选择出发地，如'东莞火车站'" 
+                                   autocomplete="off"
+                                   oninput="searchDeparture(this.value)"
+                                   style="width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s;"
+                                   onfocus="this.style.borderColor='#667eea'"
+                                   onblur="setTimeout(() => { this.style.borderColor='#e5e7eb'; hideDepartureSuggestions(); }, 200)" />
+                            <input type="hidden" id="departureLocationCoord" value="" />
+                            <!-- 交通站提示下拉列表 -->
+                            <div id="departureSuggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #667eea; border-top: none; border-radius: 0 0 10px 10px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                <!-- 动态生成交通站列表 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 出发时间 -->
+                        <div>
+                            <label style="display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px;">
+                                ⏰ 出发时间 <span style="color: #9ca3af; font-weight: 400; font-size: 12px;">(可选，影响行程规划起始时间)</span>
+                            </label>
+                            <input type="time" id="departureTimeInput" value="08:00"
+                                   style="width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s;"
+                                   onfocus="this.style.borderColor='#667eea'"
+                                   onblur="this.style.borderColor='#e5e7eb'" />
+                            <p style="margin-top: 4px; font-size: 12px; color: #9ca3af;">行程将从此时间开始规划，并考虑交通耗时</p>
+                        </div>
+                        
                         <!-- 开始时间和结束时间 -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                             <div>
@@ -744,8 +774,7 @@
         // Budget data - 使用数组存储，支持动态添加/删除
         let budgetItems = [
             { id: 'attraction', name: '景点门票', desc: '每日7张门票', icon: '🚇', color: '#dbeafe', amount: 150 },
-            { id: 'lunch', name: '午餐', desc: '每日午餐预算', icon: '🚗', color: '#fef3c7', amount: 80 },
-            { id: 'dinner', name: '晚餐', desc: '每日晚餐预算', icon: '🍽️', color: '#e5e7eb', amount: 120 },
+            { id: 'transport', name: '交通费用', desc: '每日交通开支', icon: '🚌', color: '#dcfce7', amount: 50 },
             { id: 'accommodation', name: '住宿', desc: '每日住宿预算', icon: '🏠', color: '#dbeafe', amount: 300 }
         ];
         
@@ -931,8 +960,151 @@
             input.setAttribute('data-selected', 'true');
             hideCitySuggestions();
             
+            // 清空出发地（因为城市变了）
+            clearDepartureSelection();
+            
             // 检查表单验证状态
             checkFormValidity();
+        }
+        
+        // ====== 出发地搜索功能（限交通站） ======
+        let departureSearchTimeout = null;
+        
+        // 清空出发地选择
+        function clearDepartureSelection() {
+            const input = document.getElementById('departureInput');
+            const coordInput = document.getElementById('departureLocationCoord');
+            if (input) {
+                input.value = '';
+                input.style.color = '';
+                input.style.fontWeight = '';
+                input.removeAttribute('data-selected');
+            }
+            if (coordInput) {
+                coordInput.value = '';
+            }
+        }
+        
+        // 搜索交通站点
+        function searchDeparture(keyword) {
+            if (!keyword || keyword.trim().length < 2) {
+                hideDepartureSuggestions();
+                return;
+            }
+            
+            const destinationInput = document.getElementById('destinationInput');
+            const city = destinationInput ? extractCityForSearch(destinationInput.value.trim()) : '全国';
+            
+            if (departureSearchTimeout) {
+                clearTimeout(departureSearchTimeout);
+            }
+            
+            departureSearchTimeout = setTimeout(() => {
+                // 使用高德POI搜索，限制交通设施类型
+                // 150000=交通设施服务, 150100=火车站, 150200=长途汽车站, 150500=机场, 150700=港口码头
+                // 150900=地铁站, 150901=地铁站
+                const poiSearchForDeparture = new AMap.PlaceSearch({
+                    city: city,
+                    citylimit: true,
+                    pageSize: 15,
+                    type: '150100|150200|150500|150700|150900|150901' // 交通站类型
+                });
+                
+                poiSearchForDeparture.search(keyword, (status, result) => {
+                    if (status === 'complete' && result.poiList && result.poiList.pois.length > 0) {
+                        showDepartureSuggestions(result.poiList.pois);
+                    } else {
+                        // 如果没找到，尝试更广泛的搜索（包含公交站）
+                        const broadSearch = new AMap.PlaceSearch({
+                            city: city,
+                            citylimit: false,
+                            pageSize: 15,
+                            type: '150000' // 所有交通设施
+                        });
+                        broadSearch.search(keyword, (s2, r2) => {
+                            if (s2 === 'complete' && r2.poiList && r2.poiList.pois.length > 0) {
+                                showDepartureSuggestions(r2.poiList.pois);
+                            } else {
+                                hideDepartureSuggestions();
+                            }
+                        });
+                    }
+                });
+            }, 300);
+        }
+        
+        // 显示出发地建议列表
+        function showDepartureSuggestions(pois) {
+            const container = document.getElementById('departureSuggestions');
+            if (!container) return;
+            
+            // 过滤并排序：优先显示火车站、汽车站、机场
+            const priorityTypes = ['150100', '150200', '150500', '150700', '150900'];
+            const sortedPois = pois.sort((a, b) => {
+                const aType = a.typecode ? a.typecode.substring(0, 6) : '';
+                const bType = b.typecode ? b.typecode.substring(0, 6) : '';
+                const aIdx = priorityTypes.findIndex(t => aType.startsWith(t));
+                const bIdx = priorityTypes.findIndex(t => bType.startsWith(t));
+                return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+            });
+            
+            let html = '';
+            sortedPois.forEach(poi => {
+                // 根据类型设置图标
+                let icon = '🚉';
+                const typeCode = poi.typecode || '';
+                if (typeCode.startsWith('150100')) icon = '🚄'; // 火车站
+                else if (typeCode.startsWith('150200')) icon = '🚌'; // 汽车站
+                else if (typeCode.startsWith('150500')) icon = '✈️'; // 机场
+                else if (typeCode.startsWith('150700')) icon = '⛴️'; // 港口
+                else if (typeCode.startsWith('150900') || typeCode.startsWith('150901')) icon = '🚇'; // 地铁站
+                
+                const location = poi.location ? `${poi.location.lng},${poi.location.lat}` : '';
+                const address = poi.address || poi.cityname || '';
+                
+                html += `
+                    <div onclick="selectDeparture('${poi.name.replace(/'/g, "\\'")}', '${location}')" 
+                         style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 10px;"
+                         onmouseover="this.style.backgroundColor='#f8f9ff'"
+                         onmouseout="this.style.backgroundColor='white'">
+                        <span style="font-size: 20px;">${icon}</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #374151;">${poi.name}</div>
+                            <div style="font-size: 12px; color: #9ca3af;">${address}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html || '<div style="padding: 16px; color: #9ca3af; text-align: center;">未找到交通站点</div>';
+            container.style.display = 'block';
+        }
+        
+        // 隐藏出发地建议
+        function hideDepartureSuggestions() {
+            const container = document.getElementById('departureSuggestions');
+            if (container) {
+                container.style.display = 'none';
+            }
+        }
+        
+        // 选择出发地
+        function selectDeparture(name, location) {
+            const input = document.getElementById('departureInput');
+            const coordInput = document.getElementById('departureLocationCoord');
+            
+            if (input) {
+                input.value = name;
+                input.style.color = '#3b82f6';
+                input.style.fontWeight = '600';
+                input.setAttribute('data-selected', 'true');
+            }
+            
+            if (coordInput) {
+                coordInput.value = location;
+            }
+            
+            hideDepartureSuggestions();
         }
         
         // ====== POI(景点)搜索功能 ======
@@ -1821,6 +1993,13 @@
             const startDate = document.getElementById('startDateInput').value;
             const endDate = document.getElementById('endDateInput').value;
             
+            // 获取出发地信息
+            const departureLocation = document.getElementById('departureInput').value.trim();
+            const departureLocationCoord = document.getElementById('departureLocationCoord').value;
+            
+            // 获取出发时间
+            const departureTime = document.getElementById('departureTimeInput').value || '08:00';
+            
             // 验证必填字段
             if (!projectName) {
                 projectName = prompt('请输入行程名称：', `${selectedInterests[0]}之旅`);
@@ -1861,7 +2040,7 @@
             
             // Create travel project
             const now = new Date().toISOString();
-            const projectResponse = await post('/travel-projects', {
+            const projectPayload = {
                 projectName,
                 destination,
                 days,
@@ -1869,10 +2048,23 @@
                 status: '草稿',
                 createdTime: now,
                 updatedTime: now,
-                startDate: startDate,  // 添加开始日期
-                endDate: endDate,      // 添加结束日期
-                totalBudget: totalBudget  // 添加总预算
-            });
+                startDate: startDate,
+                endDate: endDate,
+                totalBudget: totalBudget
+            };
+            
+            // 添加出发地信息（如果有）
+            if (departureLocation) {
+                projectPayload.departureLocation = departureLocation;
+                projectPayload.departureLocationCoord = departureLocationCoord;
+            }
+            
+            // 添加出发时间
+            if (departureTime) {
+                projectPayload.departureTime = departureTime;
+            }
+            
+            const projectResponse = await post('/travel-projects', projectPayload);
             
             // 检查响应
             if (!projectResponse.success || !projectResponse.data || !projectResponse.data.id) {

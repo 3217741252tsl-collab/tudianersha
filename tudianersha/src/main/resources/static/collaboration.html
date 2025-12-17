@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>协作编辑 - 途点儿啥</title>
+  <!-- Version: 2024-12-17-v24-nearby-poi-location -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
   <style>
@@ -13,6 +14,13 @@
     .flow-node { width: 80px; height: 80px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; position: relative; }
     .flow-line { height: 2px; flex: 1; margin: 0 -10px; background: linear-gradient(to right, transparent 0%, #3b82f6 20%, #3b82f6 80%, transparent 100%); background-size: 10px 2px; }
     .flow-line-dashed { background: repeating-linear-gradient(to right, #3b82f6 0px, #3b82f6 10px, transparent 10px, transparent 20px); }
+    
+    /* 拖拽样式 */
+    .attraction-card { cursor: grab; transition: transform 0.2s, box-shadow 0.2s; }
+    .attraction-card:active { cursor: grabbing; }
+    .attraction-card.dragging { opacity: 0.5; transform: scale(0.95); }
+    .attraction-card.drag-over { border: 2px dashed #3b82f6; background-color: #eff6ff; }
+    .drag-placeholder { border: 2px dashed #9ca3af; background-color: #f3f4f6; border-radius: 0.5rem; min-height: 120px; }
     
     /* Chat Styles */
     .chat-messages {
@@ -220,31 +228,22 @@
               <h2 class="text-xl font-bold text-gray-800 mb-2" id="attractionName">景点名称</h2>
               <div class="flex items-center gap-4 text-sm text-gray-600">
                 <div class="flex items-center gap-1">
-                  <iconify-icon icon="mdi:clock-outline"></iconify-icon>
-                  <span id="attractionTime">09:00-12:00</span>
-                </div>
-                <div class="flex items-center gap-1">
                   <iconify-icon icon="mdi:map-marker"></iconify-icon>
                   <span id="attractionAddress" class="text-xs">地址加载中...</span>
                 </div>
               </div>
             </div>
             
-            <!-- 基本信息卡片 -->
-            <div class="grid grid-cols-2 gap-3 mb-4">
-              <div class="bg-blue-50 p-3 rounded-lg">
-                <div class="flex items-center gap-2 text-blue-600 mb-1">
-                  <iconify-icon icon="mdi:clock-outline" width="18"></iconify-icon>
-                  <span class="font-semibold text-sm">开放时间</span>
+            <!-- 景点图片 -->
+            <div class="mb-4">
+              <div class="relative rounded-lg overflow-hidden bg-gray-100" style="height: 200px;">
+                <img id="attractionImage" src="" alt="景点图片" 
+                     class="w-full h-full object-cover hidden"
+                     onerror="this.classList.add('hidden'); document.getElementById('attractionImagePlaceholder').classList.remove('hidden');">
+                <div id="attractionImagePlaceholder" class="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                  <iconify-icon icon="mdi:image-outline" width="48"></iconify-icon>
+                  <span class="text-sm mt-2">图片加载中...</span>
                 </div>
-                <p class="text-gray-700 text-xs" id="openingHours">加载中...</p>
-              </div>
-              <div class="bg-green-50 p-3 rounded-lg">
-                <div class="flex items-center gap-2 text-green-600 mb-1">
-                  <iconify-icon icon="mdi:ticket-outline" width="18"></iconify-icon>
-                  <span class="font-semibold text-sm">门票信息</span>
-                </div>
-                <p class="text-gray-700 text-xs" id="ticketInfo">加载中...</p>
               </div>
             </div>
             
@@ -365,40 +364,25 @@
       </div>
       <div class="p-6">
         <div class="space-y-4">
-          <!-- 活动类型 -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">活动类型</label>
-            <select id="activityType" onchange="handleActivityTypeChange()" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
-              <option value="attraction">景点游览</option>
-              <option value="meal">餐饮</option>
-              <option value="other">其他</option>
+          <!-- 活动类型 - 简化为只有景点 -->
+          <div class="hidden">
+            <select id="activityType" class="w-full border rounded-lg px-3 py-2">
+              <option value="attraction" selected>景点游览</option>
             </select>
           </div>
           
-          <!-- 活动名称 -->
+          <!-- 景点名称 -->
           <div class="relative">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">活动名称 <span class="text-red-500">*</span></label>
-            <input type="text" id="activityName" placeholder="例如：西湖、午餐等" 
+            <label class="block text-sm font-semibold text-gray-700 mb-2">景点名称 <span class="text-red-500">*</span></label>
+            <input type="text" id="activityName" placeholder="请输入景点名称，如：西湖" 
                    oninput="handleActivityNameInput()"
-                   onfocus="showActivitySuggestions()"
                    class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
+            <input type="hidden" id="selectedPoiLocation" value="">
+            <input type="hidden" id="selectedPoiId" value="">
+            <p class="text-xs text-gray-500 mt-1">请从下方列表中选择景点，确保高德能识别位置</p>
             <!-- 自动补全下拉列表 -->
             <div id="activitySuggestions" class="hidden absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
               <!-- 动态生成建议列表 -->
-            </div>
-          </div>
-          
-          <!-- 时间段 -->
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">开始时间</label>
-              <input type="time" id="startTime" value="09:00" 
-                     class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-2">结束时间</label>
-              <input type="time" id="endTime" value="12:00" 
-                     class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500">
             </div>
           </div>
           
@@ -439,6 +423,7 @@
         let isProjectCreator = false; // 当前用户是否是创建者
         let projectStatus = '协作中'; // 项目状态
     let currentRouteData = null; // 当前路线数据
+    let currentProjectInfo = null; // 当前项目信息缓存
     let currentDayAttractions = []; // 当前天数的景点列表
     let destinationCity = ''; // 项目目的地城市
     let activitySuggestionsData = []; // 活动名称自动补全数据
@@ -668,6 +653,7 @@
         const projectResult = await projectResponse.json();
         const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
         console.log('Project loaded:', project);
+        currentProjectInfo = project; // 缓存项目信息
         const currentRouteId = project.currentRouteId;
         
         if (!currentRouteId) {
@@ -822,6 +808,7 @@
         document.getElementById('currentDayLabel').textContent = `${dateStr}（第${selectedDay}天）`;
         
         // 渲染路线总览（显示所有活动）
+        console.log('[loadDayAttractions] 准备调用renderDayOverview, dayData.activities:', dayData.activities);
         renderDayOverview(dayData.activities, selectedDay);
         
       } catch (error) {
@@ -914,10 +901,6 @@
               </div>
               <div class="flex-1 min-w-0">
                 <h4 class="font-semibold text-gray-800 truncate">${attr.name}</h4>
-                <p class="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                  <iconify-icon icon="mdi:clock-outline" width="12"></iconify-icon>
-                  ${attr.time || '时间未设置'}
-                </p>
                 ${userText}
               </div>
               <iconify-icon icon="mdi:chevron-right" class="text-gray-400" width="20"></iconify-icon>
@@ -927,11 +910,18 @@
       }).join('');
     }
     
-    // 渲染路线总览（横向4列网格）
+    // 渲染路线总览（横向4列网格，带交通信息）
     function renderDayOverview(activities, selectedDay) {
+      console.log('[renderDayOverview] 调用，activities:', activities, 'selectedDay:', selectedDay);
       const gridContainer = document.getElementById('dayOverviewGrid');
       
+      if (!gridContainer) {
+        console.error('[renderDayOverview] 找不到dayOverviewGrid元素!');
+        return;
+      }
+      
       if (!activities || activities.length === 0) {
+        console.log('[renderDayOverview] 没有activities数据');
         gridContainer.innerHTML = `
           <div class="text-center text-gray-400 col-span-4 py-8">
             <iconify-icon icon="mdi:calendar-blank" width="48"></iconify-icon>
@@ -941,31 +931,41 @@
         return;
       }
       
+      console.log('[renderDayOverview] 开始渲染', activities.length, '个活动');
+      
+      try {
+      
+      // 获取当天的交通信息
+      const dailyItinerary = JSON.parse(currentRouteData.dailyItinerary);
+      const dayData = dailyItinerary.find(d => (d.day || dailyItinerary.indexOf(d) + 1) === selectedDay);
+      const transports = dayData && dayData.transports ? dayData.transports : [];
+      
+      console.log('[renderDayOverview] 交通信息:');
+      transports.forEach((t, i) => {
+        console.log(`  [${i}] from: ${t.fromName}, to: ${t.toName}, isDeparture: ${t.isDeparture}`);
+      });
+      
+      // 检查出发地交通的目的地
+      const depTransportCheck = transports.find(t => t.fromIndex === -1 || t.isDeparture);
+      if (depTransportCheck) {
+        console.log('[renderDayOverview] 出发地交通目的地:', depTransportCheck.toName);
+      }
+      
       // 解析每个活动
       const parsedActivities = activities.map((activity, index) => {
         // 使用适配器解析activity
         const parsed = parseActivity(activity);
+        console.log('[Activity Card] parsed:', JSON.stringify({text: parsed.text, duration: parsed.duration, ticket: parsed.ticket}));
         const activityText = parsed.text;
-        let timeRange = parsed.timeRange || '未设置';
+        let timeRange = '';
         let content = parsed.content;
         const poiInfo = parsed.poiInfo;
-        let activityType = 'other'; // attraction, meal, other
+        let activityType = 'attraction';
         let icon = 'mdi:map-marker';
-        let bgColor = 'bg-gray-100';
-        let textColor = 'text-gray-600';
+        let bgColor = 'bg-blue-100';
+        let textColor = 'text-blue-600';
         
-        // 判断活动类型
-        if (content.includes('早餐') || content.includes('午餐') || content.includes('晚餐')) {
-          activityType = 'meal';
-          icon = 'mdi:silverware-fork-knife';
-          bgColor = 'bg-orange-100';
-          textColor = 'text-orange-600';
-        } else if (content.includes('景点') || content.includes('上午') || content.includes('下午') || content.includes('晚上')) {
-          activityType = 'attraction';
-          icon = 'mdi:map-marker';
-          bgColor = 'bg-blue-100';
-          textColor = 'text-blue-600';
-        }
+        // 所有活动都是景点类型
         
         // 提取名称（优先使用poiInfo.name）
         let displayName = '';
@@ -996,12 +996,54 @@
           icon,
           bgColor,
           textColor,
-          originalIndex: index // 保存原始索引用于删除
+          // 修复：始终使用当前循环的index，而不是activity对象中的index（那个可能过时）
+          originalIndex: index,
+          duration: parsed.duration || null,  // 游玩时间
+          ticket: parsed.ticket || 0          // 门票价格
         };
       });
       
-      // 渲染卡片（4列网格）
-      gridContainer.innerHTML = parsedActivities.map((activity, index) => {
+      // 渲染卡片（包含交通信息）
+      let html = '';
+      
+      // 检查是否有出发地交通信息（第一天且fromIndex=-1）
+      const departureTransport = transports.find(t => t.fromIndex === -1 || t.isDeparture);
+      if (departureTransport && selectedDay === 1) {
+        // 获取出发时间（从缓存的项目数据获取）
+        const departureTime = (currentProjectInfo && currentProjectInfo.departureTime) || '08:00';
+        
+        // 渲染出发地卡片（包含出发时间）
+        html += `
+          <div class="bg-purple-100 border-2 border-purple-300 rounded-lg p-3 relative">
+            <div class="flex flex-col h-full">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-full bg-purple-200 flex items-center justify-center">
+                    <iconify-icon icon="mdi:map-marker" class="text-purple-600" width="18"></iconify-icon>
+                  </div>
+                  <span class="text-sm font-medium text-purple-600">出发地</span>
+                </div>
+                <span class="text-xs text-purple-500 font-medium"><iconify-icon icon="mdi:clock-outline" class="mr-1"></iconify-icon>${departureTime} 出发</span>
+              </div>
+              <p class="text-sm font-semibold text-gray-800">${departureTransport.fromName || '出发地'}</p>
+            </div>
+          </div>
+        `;
+        
+        // 渲染出发地到第一个景点的交通信息
+        const transportCard = renderTransportCard(departureTransport);
+        html += `<div class="relative">
+          <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded">
+            前往 ${departureTransport.toName || '第一个景点'}
+          </div>
+          ${transportCard}
+        </div>`;
+      }
+      
+      // 用于跟踪已渲染的交通卡片，防止重复
+      const renderedTransportKeys = new Set();
+      
+      parsedActivities.forEach((activity, index) => {
         // 获取想去该景点的用户（只对景点类型显示）
         let userWantText = '';
         if (activity.type === 'attraction') {
@@ -1015,8 +1057,16 @@
         const budgetKey = `${selectedDay}-${index}`;
         const budgetValue = activityBudgets[budgetKey] || '';
         
-        return `
-          <div class="bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group">
+        // 活动卡片（可拖拽）
+        html += `
+          <div class="attraction-card bg-white border rounded-lg p-3 hover:shadow-md transition-shadow relative group"
+               draggable="${canEdit}"
+               data-activity-index="${index}"
+               ondragstart="handleDragStart(event, ${index})"
+               ondragend="handleDragEnd(event)"
+               ondragover="handleDragOver(event)"
+               ondragleave="handleDragLeave(event)"
+               ondrop="handleDrop(event, ${index})">
             ${canEdit ? `
               <button onclick="event.stopPropagation(); deleteAttraction(${activity.originalIndex})" 
                       class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
@@ -1029,9 +1079,14 @@
                 <div class="w-8 h-8 ${activity.bgColor} rounded-full flex items-center justify-center flex-shrink-0">
                   <iconify-icon icon="${activity.icon}" class="${activity.textColor}" width="16"></iconify-icon>
                 </div>
-                <span class="text-xs font-semibold ${activity.textColor}">${activity.time}</span>
               </div>
               <h5 class="text-sm font-medium text-gray-800 line-clamp-2 flex-1">${activity.name}</h5>
+              ${activity.type === 'attraction' ? `
+                <div class="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                  ${activity.duration ? `<span class="flex items-center gap-1"><iconify-icon icon="mdi:clock-outline" width="12"></iconify-icon>${activity.duration}</span>` : ''}
+                  ${activity.ticket !== undefined && activity.ticket !== null ? (activity.ticket > 0 ? `<span class="flex items-center gap-1"><iconify-icon icon="mdi:ticket-outline" width="12"></iconify-icon>¥${activity.ticket}</span>` : '<span class="text-green-600">免费</span>') : ''}
+                </div>
+              ` : ''}
               ${userWantText}
               
               <!-- 预算输入框 -->
@@ -1054,10 +1109,267 @@
             </div>
           </div>
         `;
-      }).join('');
+        
+        // 查找当前景点到下一个景点的交通信息（交通显示在当前景点之后）
+        // 优先使用名称匹配，其次使用索引匹配
+        const transport = transports.find(t => {
+          if (t.isDeparture) return false;
+          
+          // 名称匹配（去除空格和特殊字符后比较）
+          if (t.fromName && activity.name) {
+            const cleanTransportName = t.fromName.replace(/[\s\-]/g, '');
+            const cleanActivityName = activity.name.replace(/[\s\-]/g, '');
+            
+            if (cleanTransportName === cleanActivityName || 
+                cleanTransportName.includes(cleanActivityName) || 
+                cleanActivityName.includes(cleanTransportName)) {
+              return true;
+            }
+          }
+          
+          // 索引匹配作为后备
+          return t.fromIndex === activity.originalIndex;
+        });
+        
+        if (transport) {
+          // 生成交通卡片的唯一标识（使用起点和终点名称）
+          const transportKey = `${transport.fromName || ''}-${transport.toName || ''}`;
+          
+          // 检查是否已经渲染过
+          if (renderedTransportKeys.has(transportKey)) {
+            console.log(`[renderDayOverview] 跳过重复交通: ${transportKey}`);
+          } else {
+            renderedTransportKeys.add(transportKey);
+            console.log(`[renderDayOverview] 找到交通: ${activity.name} (idx=${activity.originalIndex}) -> ${transport.toName}`);
+            // 渲染交通信息卡片
+            html += renderTransportCard(transport);
+          }
+        } else {
+          console.log(`[renderDayOverview] 未找到交通: ${activity.name} (originalIndex=${activity.originalIndex})`);
+        }
+      });
+      
+      gridContainer.innerHTML = html;
       
       // 更新预算统计
       updateBudgetSummary(selectedDay);
+      
+      console.log('[renderDayOverview] 渲染完成');
+      
+      } catch (error) {
+        console.error('[renderDayOverview] 渲染出错:', error);
+        gridContainer.innerHTML = `
+          <div class="text-center text-red-400 col-span-4 py-8">
+            <iconify-icon icon="mdi:alert-circle" width="48"></iconify-icon>
+            <p class="mt-2 text-sm">渲染出错：${error.message}</p>
+          </div>
+        `;
+      }
+    }
+    
+    // 渲染交通信息卡片（极简版，点击弹窗显示详情）
+    function renderTransportCard(transport) {
+      // 过滤极短距离的交通（<100米）
+      if (transport.distance && transport.distance < 100) {
+        return '';
+      }
+      
+      // 确定主要交通方式
+      let mainMethod = '公交';
+      let mainIcon = 'mdi:bus';
+      let mainColor = 'text-green-600';
+      let bgColor = 'bg-green-50';
+      let borderColor = 'border-green-200';
+      
+      if (transport.steps && transport.steps.length > 0) {
+        const transitSteps = transport.steps.filter(s => s.type !== 'walk');
+        if (transitSteps.length > 0) {
+          const firstType = transitSteps[0].type;
+          if (firstType === 'subway') {
+            mainMethod = '地铁';
+            mainIcon = 'mdi:subway-variant';
+            mainColor = 'text-blue-600';
+            bgColor = 'bg-blue-50';
+            borderColor = 'border-blue-200';
+          } else {
+            mainMethod = '公交';
+            mainIcon = 'mdi:bus';
+            mainColor = 'text-green-600';
+            bgColor = 'bg-green-50';
+            borderColor = 'border-green-200';
+          }
+        } else {
+          mainMethod = '步行';
+          mainIcon = 'mdi:walk';
+          mainColor = 'text-emerald-600';
+          bgColor = 'bg-emerald-50';
+          borderColor = 'border-emerald-200';
+        }
+      } else {
+        const method = transport.method || '';
+        if (method.includes('步行')) {
+          mainMethod = '步行';
+          mainIcon = 'mdi:walk';
+          mainColor = 'text-emerald-600';
+          bgColor = 'bg-emerald-50';
+          borderColor = 'border-emerald-200';
+        } else if (method.includes('地铁')) {
+          mainMethod = '地铁';
+          mainIcon = 'mdi:subway-variant';
+          mainColor = 'text-blue-600';
+          bgColor = 'bg-blue-50';
+          borderColor = 'border-blue-200';
+        } else if (method.includes('驾车') || method.includes('打车')) {
+          mainMethod = '打车';
+          mainIcon = 'mdi:car';
+          mainColor = 'text-purple-600';
+          bgColor = 'bg-purple-50';
+          borderColor = 'border-purple-200';
+        }
+      }
+      
+      // 警告样式
+      if (transport.distanceTooFar) {
+        bgColor = 'bg-red-50';
+        borderColor = 'border-red-300';
+      }
+      
+      // 将transport数据序列化传递给弹窗
+      const transportData = encodeURIComponent(JSON.stringify(transport));
+      
+      return `
+        <div class="${bgColor} ${borderColor} border rounded-lg px-3 py-2 my-1 cursor-pointer hover:shadow-md transition-shadow flex items-center justify-center gap-2"
+             onclick="showTransportModal('${transportData}')">
+          <iconify-icon icon="${mainIcon}" class="${mainColor}" width="20"></iconify-icon>
+          <span class="text-sm font-medium ${mainColor}">${mainMethod}</span>
+          <span class="text-xs text-gray-400">${transport.durationText || ''}</span>
+        </div>
+      `;
+    }
+    
+    // 显示交通详情弹窗
+    function showTransportModal(transportDataEncoded) {
+      const transport = JSON.parse(decodeURIComponent(transportDataEncoded));
+      console.log('[Transport Modal] 接收到的数据:', transport);
+      
+      // 计算显示值
+      let distanceDisplay = '-';
+      if (transport.distanceText) {
+        distanceDisplay = transport.distanceText;
+      } else if (transport.distance) {
+        distanceDisplay = transport.distance > 1000 ? (transport.distance/1000).toFixed(1) + 'km' : transport.distance + 'm';
+      }
+      
+      let durationDisplay = '-';
+      if (transport.durationText) {
+        durationDisplay = transport.durationText;
+      } else if (transport.duration) {
+        durationDisplay = Math.ceil(transport.duration/60) + '分钟';
+      }
+      
+      let costDisplay = transport.costText || '免费';
+      
+      // 生成详细步骤HTML
+      let stepsHtml = '';
+      if (transport.steps && transport.steps.length > 0) {
+        const filteredSteps = transport.steps.filter(step => {
+          if (step.type === 'walk' && step.distance && step.distance < 50) return false;
+          return true;
+        });
+        
+        stepsHtml = filteredSteps.map(step => {
+          let icon, color;
+          if (step.type === 'walk') {
+            icon = 'mdi:walk';
+            color = 'text-emerald-600';
+          } else if (step.type === 'subway') {
+            icon = 'mdi:subway-variant';
+            color = 'text-blue-600';
+          } else {
+            icon = 'mdi:bus';
+            color = 'text-green-600';
+          }
+          
+          const descLines = (step.description || '').split('\n');
+          const mainDesc = descLines[0];
+          const subDesc = descLines.length > 1 ? descLines.slice(1).join('<br>') : '';
+          
+          return `
+            <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+              <iconify-icon icon="${icon}" class="${color} flex-shrink-0 mt-1" width="20"></iconify-icon>
+              <div class="flex-1">
+                <div class="${color} font-medium">${mainDesc}</div>
+                ${subDesc ? `<div class="text-xs text-gray-500 mt-1">${subDesc}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      // 创建弹窗
+      const modalHtml = `
+        <div id="transportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeTransportModal(event)">
+          <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex items-center justify-between">
+              <h3 class="font-bold text-lg">交通详情</h3>
+              <button onclick="closeTransportModal()" class="hover:bg-white/20 rounded-full p-1">
+                <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+              </button>
+            </div>
+            <div class="p-4">
+              <!-- 概览信息 -->
+              <div class="flex items-center justify-around bg-gray-50 rounded-lg p-3 mb-4">
+                <div class="text-center">
+                  <iconify-icon icon="mdi:map-marker-distance" class="text-gray-500" width="24"></iconify-icon>
+                  <div class="text-sm font-medium mt-1">${distanceDisplay}</div>
+                  <div class="text-xs text-gray-400">距离</div>
+                </div>
+                <div class="text-center">
+                  <iconify-icon icon="mdi:clock-outline" class="text-gray-500" width="24"></iconify-icon>
+                  <div class="text-sm font-medium mt-1">${durationDisplay}</div>
+                  <div class="text-xs text-gray-400">时长</div>
+                </div>
+                <div class="text-center">
+                  <iconify-icon icon="mdi:cash" class="text-blue-600" width="24"></iconify-icon>
+                  <div class="text-sm font-medium mt-1 text-blue-600">${costDisplay}</div>
+                  <div class="text-xs text-gray-400">费用</div>
+                </div>
+              </div>
+              
+              <!-- 详细步骤 -->
+              ${stepsHtml ? `
+                <div class="border-t pt-3">
+                  <h4 class="text-sm font-medium text-gray-700 mb-2">详细路线</h4>
+                  <div class="max-h-60 overflow-y-auto">
+                    ${stepsHtml}
+                  </div>
+                </div>
+              ` : ''}
+              
+              ${transport.warning ? `
+                <div class="mt-3 bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg flex items-center gap-2">
+                  <iconify-icon icon="mdi:alert" width="16"></iconify-icon>
+                  ${transport.warning}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // 移除旧弹窗（如果存在）
+      const oldModal = document.getElementById('transportModal');
+      if (oldModal) oldModal.remove();
+      
+      // 添加新弹窗
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+    
+    // 关闭交通详情弹窗
+    function closeTransportModal(event) {
+      if (event && event.target.id !== 'transportModal') return;
+      const modal = document.getElementById('transportModal');
+      if (modal) modal.remove();
     }
     
     // 更新活动预算
@@ -1219,16 +1531,21 @@
       
       // 设置基本信息
       document.getElementById('attractionName').textContent = attraction.name;
-      document.getElementById('attractionTime').textContent = attraction.time || '时间未设置';
+      
+      // 重置图片状态
+      const imgElement = document.getElementById('attractionImage');
+      const placeholderElement = document.getElementById('attractionImagePlaceholder');
+      imgElement.classList.add('hidden');
+      imgElement.src = '';
+      placeholderElement.classList.remove('hidden');
+      placeholderElement.innerHTML = '<iconify-icon icon="mdi:loading" class="animate-spin" width="48"></iconify-icon><span class="text-sm mt-2">图片加载中...</span>';
       
       // 重置加载状态
-      document.getElementById('openingHours').textContent = '加载中...';
-      document.getElementById('ticketInfo').textContent = '加载中...';
       document.getElementById('attractionAddress').textContent = '加载中...';
       document.getElementById('aiIntroduction').innerHTML = `
         <div class="flex items-center justify-center py-8">
           <iconify-icon icon="mdi:loading" class="text-blue-500 animate-spin" width="32"></iconify-icon>
-          <span class="ml-2 text-gray-500">AI 正在生成介绍...</span>
+          <span class="ml-2 text-gray-500">AI 正在查找该景点的门票与开放时间信息...</span>
         </div>
       `;
       
@@ -1245,44 +1562,40 @@
     // 加载高德景点信息（优先使用已有poiInfo）
     async function loadAmapInfo(attraction) {
       try {
+        const imgElement = document.getElementById('attractionImage');
+        const placeholderElement = document.getElementById('attractionImagePlaceholder');
+        
         // 如果attraction已经有poiInfo，直接使用
         if (attraction.poiInfo && Object.keys(attraction.poiInfo).length > 0) {
           const data = attraction.poiInfo;
           console.log('[loadAmapInfo] Using cached poiInfo:', JSON.stringify(data, null, 2));
           
-          // 使用已缓存的POI信息
+          // 使用已缓存的POI信息 - 地址
           if (data.address) {
             document.getElementById('attractionAddress').textContent = data.address;
           } else {
             document.getElementById('attractionAddress').textContent = '地址信息暂无';
           }
           
-          // 检查opentime字段
-          console.log('[loadAmapInfo] opentime:', data.opentime, 'type:', typeof data.opentime);
-          if (data.opentime && data.opentime !== '[]' && data.opentime.trim() !== '') {
-            document.getElementById('openingHours').textContent = data.opentime;
-          } else {
-            // 对于公园类型，显示全天开放
-            if (data.type && data.type.includes('公园')) {
-              document.getElementById('openingHours').textContent = '全天开放';
+          // 设置景点图片
+          if (data.photos && data.photos.length > 0) {
+            const photoUrl = data.photos[0].url;
+            if (photoUrl) {
+              imgElement.src = photoUrl;
+              imgElement.onload = () => {
+                imgElement.classList.remove('hidden');
+                placeholderElement.classList.add('hidden');
+              };
+              imgElement.onerror = () => {
+                imgElement.classList.add('hidden');
+                placeholderElement.classList.remove('hidden');
+                placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">图片加载失败</span>';
+              };
             } else {
-              document.getElementById('openingHours').textContent = '请查看官方信息';
+              placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">暂无图片</span>';
             }
-          }
-          
-          // 检查ticket和cost字段
-          console.log('[loadAmapInfo] ticket:', data.ticket, 'cost:', data.cost, 'type:', data.type);
-          if (data.ticket && data.ticket !== '[]' && data.ticket.trim() !== '') {
-            document.getElementById('ticketInfo').textContent = data.ticket;
-          } else if (data.cost && data.cost !== '[]' && data.cost.trim() !== '') {
-            document.getElementById('ticketInfo').textContent = '约' + data.cost + '元';
           } else {
-            // 对于公园类型，显示免费
-            if (data.type && data.type.includes('公园')) {
-              document.getElementById('ticketInfo').textContent = '免费开放';
-            } else {
-              document.getElementById('ticketInfo').textContent = '请查看官方信息';
-            }
+            placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">暂无图片</span>';
           }
           
           return;
@@ -1303,7 +1616,6 @@
         
         const response = await fetch(url);
         console.log('Response status:', response.status, 'OK:', response.ok);
-        console.log('Response headers:', response.headers.get('content-type'));
         
         if (!response.ok) {
           console.warn('Amap API response not OK:', response.status);
@@ -1312,60 +1624,41 @@
         
         const data = await response.json();
         console.log('Amap API returned:', JSON.stringify(data, null, 2));
-        console.log('Has address:', !!data.address, 'Has name:', !!data.name, 'Has location:', !!data.location);
         
         // 优先使用高德返回的地址
         if (data && data.address) {
-          console.log('Using Amap address:', data.address);
           document.getElementById('attractionAddress').textContent = data.address;
         } else if (data && data.name) {
-          console.log('POI found but no address available');
           document.getElementById('attractionAddress').textContent = '地址信息暂无';
         } else {
-          console.log('No POI found, data keys:', Object.keys(data));
           document.getElementById('attractionAddress').textContent = '未找到景点';
         }
         
-        // 使用高德API返回的开放时间和门票信息
-        if (data && data.opentime) {
-          document.getElementById('openingHours').textContent = data.opentime;
+        // 设置景点图片
+        if (data && data.photos && data.photos.length > 0) {
+          const photoUrl = data.photos[0].url;
+          if (photoUrl) {
+            imgElement.src = photoUrl;
+            imgElement.onload = () => {
+              imgElement.classList.remove('hidden');
+              placeholderElement.classList.add('hidden');
+            };
+            imgElement.onerror = () => {
+              imgElement.classList.add('hidden');
+              placeholderElement.classList.remove('hidden');
+              placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">图片加载失败</span>';
+            };
+          } else {
+            placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">暂无图片</span>';
+          }
         } else {
-          document.getElementById('openingHours').textContent = '请查看官方信息';
-        }
-        
-        // 门票信息
-        if (data && data.ticket) {
-          document.getElementById('ticketInfo').textContent = data.ticket;
-        } else if (data && data.cost) {
-          document.getElementById('ticketInfo').textContent = '约' + data.cost + '元';
-        } else {
-          document.getElementById('ticketInfo').textContent = '请查看官方信息';
+          placeholderElement.innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">暂无图片</span>';
         }
         
       } catch (error) {
         console.error('Error loading Amap info:', error);
         document.getElementById('attractionAddress').textContent = '暂无定位信息';
-        document.getElementById('openingHours').textContent = '请查看官方信息';
-        document.getElementById('ticketInfo').textContent = '请查看官方信息';
-      }
-    }
-    
-    // 从文本中提取开放时间和门票信息
-    function extractOpeningHoursAndTicket(content) {
-      // 提取开放时间
-      const openingMatch = content.match(/开放时间[::：]([^，,。]+)/);
-      if (openingMatch) {
-        document.getElementById('openingHours').textContent = openingMatch[1].trim();
-      } else {
-        document.getElementById('openingHours').textContent = '未标注';
-      }
-      
-      // 提取门票信息
-      const ticketMatch = content.match(/门票[::：]([^，,。]+)/);
-      if (ticketMatch) {
-        document.getElementById('ticketInfo').textContent = ticketMatch[1].trim();
-      } else {
-        document.getElementById('ticketInfo').textContent = '未标注';
+        document.getElementById('attractionImagePlaceholder').innerHTML = '<iconify-icon icon="mdi:image-off-outline" width="48"></iconify-icon><span class="text-sm mt-2">图片加载失败</span>';
       }
     }
     
@@ -1434,21 +1727,29 @@
         
         if (data.success && data.attractions && data.attractions.length > 0) {
           // 显示附近景点（最多5个）
-          const nearbyList = data.attractions.slice(0, 5).map(poi => `
-            <div class="bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="addAttractionFromRecommendation('${poi.name}')">
+          const nearbyList = data.attractions.slice(0, 5).map(poi => {
+            // 将POI信息编码以便传递
+            const poiData = encodeURIComponent(JSON.stringify({
+              name: poi.name,
+              location: poi.location,
+              address: poi.address
+            }));
+            return `
+            <div class="bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="addAttractionFromRecommendation('${poiData}')">
               <div class="flex items-start gap-2">
                 <iconify-icon icon="mdi:map-marker" class="text-green-600 mt-0.5" width="16"></iconify-icon>
                 <div class="flex-1 min-w-0">
                   <h5 class="text-xs font-semibold text-gray-800 truncate">${poi.name}</h5>
                   <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${poi.address || '地址未知'}</p>
-                  ${poi.distance ? `<p class="text-xs text-blue-600 mt-0.5">距离约 ${poi.distance}</p>` : ''}
+                  ${poi.distance ? `<p class="text-xs text-blue-600 mt-0.5">距离约 ${poi.distance}米</p>` : ''}
                 </div>
                 ${canEdit ? `
                   <iconify-icon icon="mdi:plus-circle" class="text-green-600 flex-shrink-0" width="16" title="添加到行程"></iconify-icon>
                 ` : ''}
               </div>
             </div>
-          `).join('');
+          `;
+          }).join('');
           
           container.innerHTML = nearbyList;
         } else {
@@ -1470,17 +1771,35 @@
       }
     }
     
-    // 从推荐中添加景点到行程
-    function addAttractionFromRecommendation(attractionName) {
+    // 从推荐中添加景点到行程（携带高德位置信息）
+    function addAttractionFromRecommendation(poiDataEncoded) {
       if (!canEdit) {
         alert('您没有编辑权限');
         return;
       }
       
-      // 打开新增活动弹窗并预填景点名称
-      openAddActivityModal();
-      document.getElementById('activityName').value = attractionName;
-      document.getElementById('activityType').value = 'attraction';
+      try {
+        // 解析POI数据
+        const poiData = JSON.parse(decodeURIComponent(poiDataEncoded));
+        console.log('[addAttractionFromRecommendation] POI数据:', poiData);
+        
+        // 打开新增活动弹窗并预填景点名称
+        openAddActivityModal();
+        document.getElementById('activityName').value = poiData.name;
+        document.getElementById('activityType').value = 'attraction';
+        
+        // 保存位置信息以便保存时使用
+        if (poiData.location) {
+          window.pendingPoiLocation = poiData.location;
+          console.log('[addAttractionFromRecommendation] 已保存位置:', poiData.location);
+        }
+      } catch (e) {
+        console.error('[addAttractionFromRecommendation] 解析失败:', e);
+        // 兑容旧版本，直接使用名称
+        openAddActivityModal();
+        document.getElementById('activityName').value = poiDataEncoded;
+        document.getElementById('activityType').value = 'attraction';
+      }
     }
 
     // 项目参与者列表
@@ -1846,9 +2165,16 @@
       container.innerHTML = messages.map(msg => {
         const isCurrentUser = msg.userId === currentUser.id;
         const timeAgo = formatTimeAgo(msg.createdTime);
+        // 检查是否被@（别人的消息且@了当前用户）
+        const isMentioned = !isCurrentUser && checkMention(msg.message);
+        // 被@时使用蓝色高亮背景
+        let bgClass = isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border';
+        if (isMentioned) {
+          bgClass = 'bg-blue-100 border-2 border-blue-400';
+        }
         return `
           <div class="${isCurrentUser ? 'flex justify-end' : ''}">
-            <div class="${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border'} p-3 rounded-lg max-w-[80%] shadow-sm">
+            <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''}">
               <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
               <div class="text-sm break-words">${msg.message}</div>
               <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
@@ -1860,15 +2186,43 @@
       container.scrollTop = container.scrollHeight;
     }
     
+    // @提醒声音
+    function playMentionSound() {
+      try {
+        const audio = new Audio('/sounds/mention.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('播放提示音失败:', e));
+      } catch (e) {
+        console.log('播放提示音失败:', e);
+      }
+    }
+    
+    // 检查消息是否@了当前用户
+    function checkMention(message) {
+      if (!currentUser || !currentUser.username) return false;
+      const mentionPattern = new RegExp(`@${currentUser.username}\\b`, 'i');
+      return mentionPattern.test(message);
+    }
+    
     function appendNewMessages(messages) {
       const container = document.getElementById('chatMessages');
+      let hasMention = false;
+      
       messages.forEach(msg => {
         const isCurrentUser = msg.userId === currentUser.id;
         const timeAgo = formatTimeAgo(msg.createdTime);
+        // 检查是否被@
+        const isMentioned = !isCurrentUser && checkMention(msg.message);
+        // 被@时使用蓝色高亮背景
+        let bgClass = isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border';
+        if (isMentioned) {
+          bgClass = 'bg-blue-100 border-2 border-blue-400';
+          hasMention = true;
+        }
         const messageEl = document.createElement('div');
         messageEl.className = isCurrentUser ? 'flex justify-end' : '';
         messageEl.innerHTML = `
-          <div class="${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border'} p-3 rounded-lg max-w-[80%] shadow-sm">
+          <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''}">
             <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
             <div class="text-sm break-words">${msg.message}</div>
             <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
@@ -1876,6 +2230,12 @@
         `;
         container.appendChild(messageEl);
       });
+      
+      // 如果被@，播放提示音
+      if (hasMention) {
+        playMentionSound();
+      }
+      
       container.scrollTop = container.scrollHeight;
     }
     
@@ -1898,7 +2258,10 @@
 
     function showMentionDropdown(searchText = '') {
       const dropdown = document.getElementById('mentionDropdown');
+      // 过滤参与者，排除当前用户（不能@自己）
       const filtered = projectParticipants.filter(p => {
+        // 排除当前用户
+        if (p.userId === currentUser.id) return false;
         const username = p.userInfo?.username || `用户${p.userId}`;
         return username.toLowerCase().includes(searchText.toLowerCase());
       });
@@ -2127,44 +2490,28 @@
       // 清空表单
       document.getElementById('activityName').value = '';
       document.getElementById('activityType').value = 'attraction';
-      document.getElementById('startTime').value = '09:00';
-      document.getElementById('endTime').value = '12:00';
       document.getElementById('activityDescription').value = '';
       document.getElementById('activitySuggestions').classList.add('hidden');
+      document.getElementById('selectedPoiLocation').value = '';
+      document.getElementById('selectedPoiId').value = '';
       activitySuggestionsData = [];
+      // 清理预存的位置信息
+      window.pendingPoiLocation = null;
     }
     
     // 活动类型变化时的处理
     function handleActivityTypeChange() {
-      const type = document.getElementById('activityType').value;
-      const nameInput = document.getElementById('activityName');
-      
-      // 根据类型调整提示文本
-      if (type === 'attraction') {
-        nameInput.placeholder = '输入景点名称，如：西湖';
-      } else if (type === 'meal') {
-        nameInput.placeholder = '输入餐厅或餐食名称';
-      } else {
-        nameInput.placeholder = '输入活动名称';
-      }
-      
-      // 清空输入和建议
-      nameInput.value = '';
-      document.getElementById('activitySuggestions').classList.add('hidden');
-      activitySuggestionsData = [];
+      // 简化后不需要处理，保留空函数兼容
     }
     
     // 活动名称输入时的处理
     let activityInputTimeout = null;
     async function handleActivityNameInput() {
-      const type = document.getElementById('activityType').value;
       const keyword = document.getElementById('activityName').value.trim();
       
-      // 只有当类型为“景点游览”时才启用自动补全
-      if (type !== 'attraction') {
-        document.getElementById('activitySuggestions').classList.add('hidden');
-        return;
-      }
+      // 清空之前选中的位置信息
+      document.getElementById('selectedPoiLocation').value = '';
+      document.getElementById('selectedPoiId').value = '';
       
       if (!keyword) {
         document.getElementById('activitySuggestions').classList.add('hidden');
@@ -2241,7 +2588,7 @@
       }
     }
     
-    // 渲染景点建议列表
+    // 渲染景点建议列表（保存完整POI信息）
     function renderActivitySuggestions() {
       const suggestionsDiv = document.getElementById('activitySuggestions');
       
@@ -2250,31 +2597,40 @@
         return;
       }
       
-      suggestionsDiv.innerHTML = activitySuggestionsData.slice(0, 10).map(poi => `
+      suggestionsDiv.innerHTML = activitySuggestionsData.slice(0, 10).map((poi, index) => `
         <div class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0" 
-             onclick="selectActivitySuggestion('${poi.name.replace(/'/g, "\\'")}')"
+             onclick="selectActivitySuggestion(${index})"
              title="${poi.address || ''}">
           <div class="font-medium text-gray-800">${poi.name}</div>
           <div class="text-xs text-gray-500">${poi.type || ''} ${poi.address ? '| ' + poi.address.substring(0, 30) : ''}</div>
+          <div class="text-xs text-green-600"><iconify-icon icon="mdi:map-marker-check" width="12" class="inline-block mr-1"></iconify-icon>已确认位置信息</div>
         </div>
       `).join('');
       
       suggestionsDiv.classList.remove('hidden');
     }
     
-    // 选择景点建议
-    function selectActivitySuggestion(name) {
-      document.getElementById('activityName').value = name;
+    // 选择景点建议（保存完整POI信息）
+    function selectActivitySuggestion(index) {
+      const poi = activitySuggestionsData[index];
+      if (!poi) return;
+      
+      // 保存景点名称
+      document.getElementById('activityName').value = poi.name;
+      // 保存位置信息
+      document.getElementById('selectedPoiLocation').value = poi.location || '';
+      document.getElementById('selectedPoiId').value = poi.id || '';
+      
+      console.log('[selectActivitySuggestion] 选中景点:', poi.name, '位置:', poi.location);
+      
       document.getElementById('activitySuggestions').classList.add('hidden');
       activitySuggestionsData = [];
     }
     
-    // 显示景点建议（获取焦点时）
+    // 显示景点建议（输入框获取焦点时）
     function showActivitySuggestions() {
-      const type = document.getElementById('activityType').value;
       const keyword = document.getElementById('activityName').value.trim();
-      
-      if (type === 'attraction' && keyword && activitySuggestionsData.length > 0) {
+      if (keyword && activitySuggestionsData.length > 0) {
         document.getElementById('activitySuggestions').classList.remove('hidden');
       }
     }
@@ -2284,16 +2640,283 @@
       document.getElementById('activityModal').classList.add('hidden');
     }
     
+    // 为新增景点生成交通信息
+    async function generateTransportForNewActivity(selectedDay, newActivityName) {
+      console.log('[自动生成交通] ========== 函数被调用 ==========');
+      console.log('[自动生成交通] selectedDay:', selectedDay, 'newActivityName:', newActivityName);
+      
+      try {
+        
+        // 获取项目信息
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
+        const city = project.destination;
+        
+        // 重新获取最新的路线数据
+        const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
+        const route = await routeResponse.json();
+        const localItinerary = JSON.parse(route.dailyItinerary);
+        
+        // 找到当前天数的数据
+        const dayData = localItinerary.find(d => (d.day || localItinerary.indexOf(d) + 1) === selectedDay);
+        if (!dayData || !dayData.activities) {
+          console.log('[自动生成交通] 找不到当前天数据');
+          return;
+        }
+        
+        // 提取所有景点（过滤餐饮）
+        const attractions = [];
+        console.log('[自动生成交通] dayData.activities 数量:', dayData.activities.length);
+        
+        dayData.activities.forEach((activity, index) => {
+          const parsed = parseActivity(activity);
+          const content = parsed.content;
+          
+          console.log(`  活动[${index}]:`, content);
+          
+          // 使用适配器的判断函数
+          if (isAttractionActivity(content)) {
+            // 优先使用poiInfo中的名称，其次提取文本
+            const attractionName = (parsed.poiInfo && parsed.poiInfo.name) ? 
+                                   parsed.poiInfo.name : 
+                                   extractAttractionName(content);
+            if (attractionName) {
+              console.log(`    ✅ 是景点! 名称: ${attractionName}`);
+              attractions.push({
+                index: index,
+                name: attractionName,
+                location: parsed.poiInfo ? parsed.poiInfo.location : null
+              });
+            } else {
+              console.log(`    ⚠️ 无法提取景点名称`);
+            }
+          } else {
+            console.log(`    ❌ 不是景点 (可能是餐饮或其他)`);
+          }
+        });
+        
+        console.log('[自动生成交通] 当前天所有景点:', attractions.map(a => a.name));
+        
+        // 找到新增景点的位置（改进：使用更宽松的匹配）
+        let newAttractionIndex = -1;
+        console.log('[自动生成交通] 开始匹配新景点:', newActivityName);
+        
+        for (let i = 0; i < attractions.length; i++) {
+          const aName = attractions[i].name.replace(/[\s\-]/g, '');  // 去除空格和连字符
+          const newName = newActivityName.replace(/[\s\-]/g, '');   // 去除空格和连字符
+          
+          console.log(`  比较: "${attractions[i].name}" (${aName}) vs "${newActivityName}" (${newName})`);
+          
+          if (aName === newName || aName.includes(newName) || newName.includes(aName)) {
+            newAttractionIndex = i;
+            console.log(`  ✅ 匹配成功! 索引: ${i}`);
+            break;
+          }
+        }
+        
+        console.log('[自动生成交通] 新景点索引:', newAttractionIndex, '新景点名称:', newActivityName);
+        
+        if (newAttractionIndex === -1) {
+          console.error('[自动生成交通] 找不到新增景点，当前景点列表:', attractions.map(a => a.name));
+          return;
+        }
+        
+        // 初始化transports数组（如果不存在）
+        if (!dayData.transports) {
+          dayData.transports = [];
+        }
+        
+        // 生成交通信息：上一个景点 -> 新景点
+        if (newAttractionIndex > 0) {
+          const prevAttraction = attractions[newAttractionIndex - 1];
+          const newAttraction = attractions[newAttractionIndex];
+          
+          console.log('[自动生成交通] 生成交通:', prevAttraction.name, '->', newAttraction.name);
+          
+          await generateTransportBetween(dayData, prevAttraction, newAttraction, city);
+        }
+        
+        // 生成交通信息：新景点 -> 下一个景点
+        if (newAttractionIndex < attractions.length - 1) {
+          const newAttraction = attractions[newAttractionIndex];
+          const nextAttraction = attractions[newAttractionIndex + 1];
+          
+          console.log('[自动生成交通] 生成交通:', newAttraction.name, '->', nextAttraction.name);
+          
+          await generateTransportBetween(dayData, newAttraction, nextAttraction, city);
+        }
+        
+        // 保存更新后的路线数据
+        route.dailyItinerary = JSON.stringify(localItinerary);
+        const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(route)
+        });
+        
+        if (saveResponse.ok) {
+          console.log('[自动生成交通] 交通信息生成成功');
+          currentRouteData = route;
+        }
+        
+      } catch (error) {
+        console.error('[自动生成交通] 错误:', error);
+      }
+    }
+    
+    // 生成两个景点间的交通信息
+    async function generateTransportBetween(dayData, fromAttraction, toAttraction, city) {
+      try {
+        // 如果已经存在交通信息，先删除
+        const existingIndex = dayData.transports.findIndex(t => 
+          t.fromIndex === fromAttraction.index && t.toIndex === toAttraction.index
+        );
+        if (existingIndex !== -1) {
+          dayData.transports.splice(existingIndex, 1);
+        }
+        
+        // 如果没有位置信息，先查询
+        let fromLocation = fromAttraction.location;
+        let toLocation = toAttraction.location;
+        
+        if (!fromLocation) {
+          console.log(`[生成交通] 开始查询起点位置: ${fromAttraction.name}`);
+          const fromPoi = await searchPOI(fromAttraction.name, city);
+          if (fromPoi) {
+            fromLocation = fromPoi.location;
+            console.log(`[生成交通] 起点位置查询成功: ${fromLocation}`);
+          } else {
+            console.error(`[生成交通] ❌ 起点位置查询失败: ${fromAttraction.name}`);
+          }
+        }
+        
+        if (!toLocation) {
+          console.log(`[生成交通] 开始查询终点位置: ${toAttraction.name}`);
+          const toPoi = await searchPOI(toAttraction.name, city);
+          if (toPoi) {
+            toLocation = toPoi.location;
+            console.log(`[生成交通] 终点位置查询成功: ${toLocation}`);
+          } else {
+            console.error(`[生成交通] ❌ 终点位置查询失败: ${toAttraction.name}`);
+          }
+        }
+        
+        if (!fromLocation || !toLocation) {
+          console.error(`[生成交通] ❌ 无法获取位置信息 - 起点: ${fromLocation || '未获取'}, 终点: ${toLocation || '未获取'}`);
+          // 显示用户友好的错误提示
+          const missingInfo = [];
+          if (!fromLocation) missingInfo.push(`起点"${fromAttraction.name}"位置未知`);
+          if (!toLocation) missingInfo.push(`终点"${toAttraction.name}"位置未知`);
+          console.warn(`[生成交通] 无法自动生成交通: ${missingInfo.join(', ')}`);
+          return;
+        }
+        
+        // 调用高德API获取交通路线（传递目的地名称）
+        console.log(`[生成交通] 调用direction API - origin: ${fromLocation}, destination: ${toLocation}, destName: ${toAttraction.name}`);
+        const response = await fetch(
+          `/api/amap-test/direction?origin=${fromLocation}&destination=${toLocation}&city=${encodeURIComponent(city)}&destName=${encodeURIComponent(toAttraction.name)}`
+        );
+        
+        console.log(`[生成交通] direction API响应状态: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[生成交通] ❌ API调用失败 - 状态: ${response.status}, 错误: ${errorText}`);
+          return;
+        }
+        
+        const transportData = await response.json();
+        console.log('[生成交通] direction API返回数据:', transportData);
+        
+        // 添加到transports数组
+        dayData.transports.push({
+          fromIndex: fromAttraction.index,
+          toIndex: toAttraction.index,
+          fromName: fromAttraction.name,
+          toName: toAttraction.name,
+          fromLocation: fromLocation,  // 保存位置信息
+          toLocation: toLocation,      // 保存位置信息
+          method: transportData.method || '公交/地铁',
+          distance: transportData.distance,
+          distanceText: transportData.distanceText,
+          duration: transportData.duration,
+          durationText: transportData.durationText,
+          cost: transportData.cost,
+          costText: transportData.costText,
+          steps: transportData.steps || [],
+          details: transportData.details
+        });
+        
+        console.log('[生成交通] 成功生成交通信息:', fromAttraction.name, '->', toAttraction.name);
+        
+      } catch (error) {
+        console.error('[生成交通] 错误:', error);
+      }
+    }
+    
+    // 搜索POI获取位置信息（多策略查询）
+    async function searchPOI(name, city) {
+      try {
+        // 策略1：使用输入提示API
+        console.log(`[searchPOI] 尝试input-tips查询: ${name}`);
+        const response1 = await fetch(
+          `/api/amap-test/input-tips?keywords=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}`
+        );
+        if (response1.ok) {
+          const data = await response1.json();
+          if (data && data.length > 0 && data[0].location) {
+            console.log(`[searchPOI] input-tips成功: ${data[0].name}, 位置: ${data[0].location}`);
+            return {
+              name: data[0].name,
+              location: data[0].location
+            };
+          }
+        }
+        
+        // 策略2：使用POI搜索API
+        console.log(`[searchPOI] input-tips无结果，尝试poi-search: ${name}`);
+        const response2 = await fetch(
+          `/api/amap-test/poi-search?keywords=${encodeURIComponent(name)}&city=${encodeURIComponent(city)}`
+        );
+        if (response2.ok) {
+          const data = await response2.json();
+          if (data && data.length > 0 && data[0].location) {
+            console.log(`[searchPOI] poi-search成功: ${data[0].name}, 位置: ${data[0].location}`);
+            return {
+              name: data[0].name,
+              location: data[0].location
+            };
+          }
+        }
+        
+        console.error(`[searchPOI] 所有查询均失败: ${name}`);
+        return null;
+      } catch (error) {
+        console.error('[searchPOI] 错误:', error);
+        return null;
+      }
+    }
+    
     // 保存活动
     async function saveActivity() {
       const name = document.getElementById('activityName').value.trim();
       const type = document.getElementById('activityType').value;
-      const startTime = document.getElementById('startTime').value;
-      const endTime = document.getElementById('endTime').value;
       const description = document.getElementById('activityDescription').value.trim();
       
       if (!name) {
-        alert('请输入活动名称');
+        alert('请输入景点名称');
+        return;
+      }
+      
+      // 验证是否有位置信息（优先使用附近景点推荐的位置，其次使用下拉列表选择的位置）
+      let poiLocation = window.pendingPoiLocation || document.getElementById('selectedPoiLocation').value;
+      
+      // 清理预存的位置
+      window.pendingPoiLocation = null;
+      
+      if (!poiLocation) {
+        alert('请从下拉列表中选择景点，确保高德能识别位置');
         return;
       }
       
@@ -2313,38 +2936,26 @@
           return;
         }
         
-        // 构造新活动字符串
-        let activityStr = `${startTime}-${endTime} `;
-        if (type === 'meal') {
-          activityStr += `餐饮：${name}`;
-        } else if (type === 'attraction') {
-          activityStr += `景点：${name}`;
-        } else {
-          activityStr += name;
-        }
+        // 构造新活动（全部都是景点，不包含时间）
+        let activityStr = `景点：${name}`;
         if (description) {
           activityStr += ` (备注：${description})`;
         }
         
-        // 添加到当前天数的activities
+        // 创建带有poiInfo的活动对象（text包含时间和格式信息）
+        const newActivity = {
+          text: activityStr,
+          poiInfo: {
+            name: name,
+            location: poiLocation || null
+          }
+        };
+        
+        // 添加到当前天数的activities（添加到末尾）
         if (!localItinerary[dayIndex].activities) {
           localItinerary[dayIndex].activities = [];
         }
-        localItinerary[dayIndex].activities.push(activityStr);
-        
-        // 按时间排序
-        localItinerary[dayIndex].activities.sort((a, b) => {
-          // 使用适配器提取文本（兼容新旧格式）
-          const textA = typeof a === 'object' && a.text ? a.text : a;
-          const textB = typeof b === 'object' && b.text ? b.text : b;
-          
-          const timeA = textA.match(/^(\d{2}:\d{2})/);
-          const timeB = textB.match(/^(\d{2}:\d{2})/);
-          if (timeA && timeB) {
-            return timeA[1].localeCompare(timeB[1]);
-          }
-          return 0;
-        });
+        localItinerary[dayIndex].activities.push(newActivity);
         
         // 更新路线数据
         route.dailyItinerary = JSON.stringify(localItinerary);
@@ -2358,19 +2969,304 @@
           body: JSON.stringify(route)
         });
         
+        console.log('[saveActivity] 保存响应:', saveResponse.ok, saveResponse.status);
+        
         if (saveResponse.ok) {
-          alert('活动添加成功！');
+          console.log('[saveActivity] 进入ok分支');
           closeActivityModal();
           // 更新本地数据
           currentRouteData = route;
           dailyItinerary = JSON.parse(route.dailyItinerary); // 更新全局变量
+          
+          console.log('[saveActivity] 开始检查活动类型...');
+          console.log('[saveActivity] type变量值:', type);
+          console.log('[saveActivity] name变量值:', name);
+          
+          // 如果是景点类型，尝试生成交通信息
+          if (type === 'attraction') {
+            console.log('[saveActivity] 是景点！准备调用generateTransportForNewActivity...');
+            await generateTransportForNewActivity(selectedDay, name);
+            console.log('[saveActivity] generateTransportForNewActivity 执行完成');
+          } else {
+            console.log('[saveActivity] 不是景点 (type=' + type + ')，跳过交通生成');
+          }
+          
+          console.log('[saveActivity] 即将刷新页面...');
           await loadDayAttractions();
+          console.log('[saveActivity] 页面刷新完成');
         } else {
-          alert('保存失败，请重试');
+          console.error('[saveActivity] 保存失败:', saveResponse.status);
         }
       } catch (error) {
         console.error('Error saving activity:', error);
         alert('保存失败：' + error.message);
+      }
+    }
+    
+    // ============ 拖拽排序功能 ============
+    let draggedActivityIndex = null;
+    let isDragging = false;
+    
+    // 拖拽开始
+    function handleDragStart(event, activityIndex) {
+      console.log('[Drag] 开始拖拽，索引:', activityIndex);
+      draggedActivityIndex = activityIndex;
+      isDragging = true;
+      event.target.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', activityIndex);
+    }
+    
+    // 拖拽结束
+    function handleDragEnd(event) {
+      console.log('[Drag] 拖拽结束');
+      event.target.classList.remove('dragging');
+      isDragging = false;
+      draggedActivityIndex = null;
+      // 移除所有高亮
+      document.querySelectorAll('.attraction-card').forEach(card => {
+        card.classList.remove('drag-over');
+      });
+    }
+    
+    // 拖拽经过
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const card = event.target.closest('.attraction-card');
+      if (card && !card.classList.contains('dragging')) {
+        card.classList.add('drag-over');
+      }
+    }
+    
+    // 拖拽离开
+    function handleDragLeave(event) {
+      const card = event.target.closest('.attraction-card');
+      if (card) {
+        card.classList.remove('drag-over');
+      }
+    }
+    
+    // 放下
+    async function handleDrop(event, targetActivityIndex) {
+      event.preventDefault();
+      const card = event.target.closest('.attraction-card');
+      if (card) {
+        card.classList.remove('drag-over');
+      }
+      
+      const sourceIndex = draggedActivityIndex;
+      
+      console.log('[Drag] Drop - 从索引', sourceIndex, '到索引', targetActivityIndex);
+      
+      if (sourceIndex === null || sourceIndex === targetActivityIndex) {
+        console.log('[Drag] 同位置，不处理');
+        return;
+      }
+      
+      // 执行重新排序
+      await reorderActivities(sourceIndex, targetActivityIndex);
+    }
+    
+    // 重新排序景点并重新生成交通
+    async function reorderActivities(fromIndex, toIndex) {
+      console.log('[Reorder] ========== 开始重新排序 ==========');
+      console.log('[Reorder] 从', fromIndex, '移动到', toIndex);
+      
+      // 获取当前选中的天数
+      const selectedDay = parseInt(document.getElementById('daySelector').value);
+      
+      try {
+        // 使用缓存的路线数据
+        if (!currentRouteData) {
+          console.error('[Reorder] 没有路线数据');
+          return;
+        }
+        
+        const route = currentRouteData;
+        const city = destinationCity || '北京';
+        
+        // 解析行程数据
+        const localItinerary = JSON.parse(route.dailyItinerary || '[]');
+        const dayData = localItinerary.find(d => (d.day || localItinerary.indexOf(d) + 1) === selectedDay);
+        
+        if (!dayData || !dayData.activities) {
+          console.error('[Reorder] 找不到当天数据');
+          return;
+        }
+        
+        // 显示加载状态
+        const overviewContainer = document.getElementById('dayOverviewGrid');
+        const originalContent = overviewContainer.innerHTML;
+        overviewContainer.innerHTML = '<div class="flex items-center justify-center py-8"><iconify-icon icon="mdi:loading" class="text-blue-500 animate-spin" width="32"></iconify-icon><span class="ml-2">正在调整景点顺序并重新生成交通...</span></div>';
+        
+        // 重新排序 activities 数组
+        const activities = dayData.activities;
+        console.log('[Reorder] 排序前:', activities.map((a, i) => `${i}: ${a.poiInfo?.name || a.text?.substring(0,10)}`));
+        
+        const [movedActivity] = activities.splice(fromIndex, 1);
+        // 如果从前往后移动，目标位置要减1（因为已删除一个元素）
+        const insertIndex = toIndex > fromIndex ? toIndex - 1 : toIndex;
+        activities.splice(insertIndex, 0, movedActivity);
+        
+        console.log('[Reorder] 排序后:', activities.map((a, i) => `${i}: ${a.poiInfo?.name || a.text?.substring(0,10)}`));
+        console.log('[Reorder] 排序后第一个元素完整结构:', JSON.stringify(activities[0]?.poiInfo));
+        
+        // 先筛选有位置信息的景点
+        const attractionsWithLocation = activities.filter(a => a.poiInfo?.location);
+        console.log('[Reorder] 有位置信息的景点:');
+        attractionsWithLocation.forEach((a, i) => {
+          console.log(`  [${i}] ${a.poiInfo?.name}, location: ${a.poiInfo?.location}`);
+        });
+        
+        // 保留出发地交通信息，清除其他交通卡片
+        const departureTransport = dayData.transports ? dayData.transports.find(t => t.fromIndex === -1 || t.isDeparture) : null;
+        console.log('[Reorder] 找到的出发地交通:', departureTransport);
+        dayData.transports = [];
+        
+        // 如果有出发地交通，更新其目的地为新的第一个景点
+        if (departureTransport && attractionsWithLocation.length > 0) {
+          const firstAttraction = attractionsWithLocation[0];
+          const firstAttrName = firstAttraction.poiInfo?.name || '第一个景点';
+          const firstAttrLocation = firstAttraction.poiInfo?.location;
+          
+          // 获取出发地位置：优先从交通卡片中获取，否则从项目信息中获取
+          let departureLocation = departureTransport.fromLocation;
+          if (!departureLocation && currentProjectInfo && currentProjectInfo.departureLocationCoord) {
+            departureLocation = currentProjectInfo.departureLocationCoord;
+            console.log('[Reorder] 从项目信息中获取出发地坐标:', departureLocation);
+          }
+          
+          console.log('[Reorder] 重新生成出发地交通:', departureTransport.fromName, '->', firstAttrName);
+          console.log('[Reorder] departureLocation:', departureLocation, 'firstAttrLocation:', firstAttrLocation);
+          
+          // 如果出发地位置有效且目的地位置有效，重新生成交通
+          if (departureLocation && firstAttrLocation) {
+            try {
+              const depResponse = await fetch(
+                `/api/amap-test/direction?origin=${departureLocation}&destination=${firstAttrLocation}&city=${encodeURIComponent(city)}&destName=${encodeURIComponent(firstAttrName)}`
+              );
+              
+              if (depResponse.ok) {
+                const depData = await depResponse.json();
+                if (depData && !depData.error) {
+                  dayData.transports.push({
+                    ...depData,  // 先展开API返回的数据
+                    fromIndex: -1,
+                    toIndex: 0,
+                    fromName: departureTransport.fromName,
+                    toName: firstAttrName,  // 确保使用新的目的地名称
+                    fromLocation: departureLocation,
+                    toLocation: firstAttrLocation,
+                    isDeparture: true
+                  });
+                  console.log('[Reorder] ✅ 出发地交通重新生成成功, 目的地:', firstAttrName);
+                } else {
+                  // API返回错误，保留原始出发地交通并更新目的地
+                  console.log('[Reorder] API返回错误，保留原始出发地交通');
+                  departureTransport.toIndex = 0;
+                  departureTransport.toName = firstAttrName;
+                  departureTransport.toLocation = firstAttrLocation;
+                  dayData.transports.push(departureTransport);
+                }
+              } else {
+                // 请求失败，保留原始出发地交通并更新目的地
+                console.log('[Reorder] 请求失败，保留原始出发地交通');
+                departureTransport.toIndex = 0;
+                departureTransport.toName = firstAttrName;
+                departureTransport.toLocation = firstAttrLocation;
+                dayData.transports.push(departureTransport);
+              }
+            } catch (err) {
+              console.error('[Reorder] 出发地交通生成失败:', err);
+              // 失败时保留原来的出发地交通
+              departureTransport.toIndex = 0;
+              departureTransport.toName = firstAttrName;
+              departureTransport.toLocation = firstAttrLocation;
+              dayData.transports.push(departureTransport);
+            }
+          } else {
+            // 出发地或目的地位置无效，保留原始出发地交通
+            console.log('[Reorder] 位置无效，保留原始出发地交通');
+            departureTransport.toIndex = 0;
+            departureTransport.toName = firstAttrName;
+            departureTransport.toLocation = firstAttrLocation;
+            dayData.transports.push(departureTransport);
+          }
+        } else if (departureTransport) {
+          // 没有有位置信息的景点，但有出发地交通，保留它
+          console.log('[Reorder] 没有有位置信息的景点，保留出发地交通');
+          dayData.transports.push(departureTransport);
+        }
+        
+        // 对所有有位置信息的相邻景点生成交通
+        for (let i = 0; i < attractionsWithLocation.length - 1; i++) {
+          const fromAttraction = attractionsWithLocation[i];
+          const toAttraction = attractionsWithLocation[i + 1];
+          
+          const fromName = fromAttraction.poiInfo?.name || '起点';
+          const toName = toAttraction.poiInfo?.name || '终点';
+          const fromLocation = fromAttraction.poiInfo?.location;
+          const toLocation = toAttraction.poiInfo?.location;
+          
+          console.log(`[Reorder] 生成交通: ${fromName} -> ${toName}`);
+          
+          try {
+            const dirResponse = await fetch(
+              `/api/amap-test/direction?origin=${fromLocation}&destination=${toLocation}&city=${encodeURIComponent(city)}&destName=${encodeURIComponent(toName)}`
+            );
+            
+            if (dirResponse.ok) {
+              const transportData = await dirResponse.json();
+              if (transportData && !transportData.error) {
+                const fromIdx = activities.indexOf(fromAttraction);
+                const toIdx = activities.indexOf(toAttraction);
+                
+                dayData.transports.push({
+                  fromIndex: fromIdx,
+                  toIndex: toIdx,
+                  fromName: fromName,
+                  toName: toName,
+                  fromLocation: fromLocation,
+                  toLocation: toLocation,
+                  ...transportData
+                });
+                console.log(`[Reorder] ✅ 交通生成成功: ${fromName} -> ${toName}`);
+              }
+            }
+          } catch (err) {
+            console.error(`[Reorder] 交通生成失败: ${fromName} -> ${toName}`, err);
+          }
+        }
+        
+        console.log('[Reorder] 共生成交通卡片数:', dayData.transports.length);
+        
+        // 更新路线数据
+        route.dailyItinerary = JSON.stringify(localItinerary);
+        
+        // 保存到后端
+        const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(route)
+        });
+        
+        if (saveResponse.ok) {
+          console.log('[Reorder] 保存成功');
+          console.log('[Reorder] 保存的transports:', JSON.stringify(dayData.transports.map(t => ({from: t.fromName, to: t.toName, isDep: t.isDeparture}))));
+          currentRouteData = route;
+          dailyItinerary = JSON.parse(route.dailyItinerary);
+          console.log('[Reorder] 刷新后dailyItinerary中的transports:', JSON.stringify(dailyItinerary.find(d => d.day === selectedDay || dailyItinerary.indexOf(d) + 1 === selectedDay)?.transports?.map(t => ({from: t.fromName, to: t.toName}))));
+          await loadDayAttractions();
+        } else {
+          console.error('[Reorder] 保存失败');
+          overviewContainer.innerHTML = originalContent;
+          alert('保存失败，请重试');
+        }
+        
+      } catch (error) {
+        console.error('[Reorder] 错误:', error);
+        alert('调整顺序失败: ' + error.message);
       }
     }
     
@@ -2383,10 +3279,16 @@
       try {
         const selectedDay = parseInt(document.getElementById('daySelector').value);
         
+        // 获取项目信息（用于生成交通）
+        const projectResponse = await fetch(`/api/travel-projects/${projectId}`);
+        const projectResult = await projectResponse.json();
+        const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
+        const city = project.destination;
+        
         // 获取当前路线数据
         const routeResponse = await fetch(`/api/ai-generated-routes/${currentRouteData.id}`);
         const route = await routeResponse.json();
-        const localItinerary = JSON.parse(route.dailyItinerary); // 使用局部变量名
+        const localItinerary = JSON.parse(route.dailyItinerary);
         
         // 找到当前天数的数据
         const dayIndex = localItinerary.findIndex(d => (d.day || localItinerary.indexOf(d) + 1) === selectedDay);
@@ -2395,39 +3297,95 @@
           return;
         }
         
+        const dayData = localItinerary[dayIndex];
+        
+        // 获取要删除的景点名称
+        const deletedActivity = dayData.activities[activityIndex];
+        const parsed = parseActivity(deletedActivity);
+        const deletedName = (parsed.poiInfo && parsed.poiInfo.name) ? parsed.poiInfo.name : extractAttractionName(parsed.content);
+        
+        console.log('[DELETE] 删除景点:', deletedName, '索引:', activityIndex);
+        
+        // 提取删除前的所有景点信息
+        const attractionsBefore = [];
+        dayData.activities.forEach((activity, idx) => {
+          const p = parseActivity(activity);
+          if (isAttractionActivity(p.content)) {
+            const name = (p.poiInfo && p.poiInfo.name) ? p.poiInfo.name : extractAttractionName(p.content);
+            if (name) {
+              attractionsBefore.push({
+                index: idx,
+                name: name,
+                location: p.poiInfo ? p.poiInfo.location : null
+              });
+            }
+          }
+        });
+        
+        // 找到删除景点在景点列表中的位置
+        const deletedAttractionIdx = attractionsBefore.findIndex(a => a.index === activityIndex);
+        const prevAttraction = deletedAttractionIdx > 0 ? attractionsBefore[deletedAttractionIdx - 1] : null;
+        const nextAttraction = deletedAttractionIdx < attractionsBefore.length - 1 ? attractionsBefore[deletedAttractionIdx + 1] : null;
+        
+        console.log('[DELETE] 前一个景点:', prevAttraction ? prevAttraction.name : '无');
+        console.log('[DELETE] 后一个景点:', nextAttraction ? nextAttraction.name : '无');
+        
         // 删除指定的活动
-        console.log('[DELETE] Activities before delete:', localItinerary[dayIndex].activities.length);
-        console.log('[DELETE] Deleting activity at index:', activityIndex);
-        console.log('[DELETE] Activity to delete:', localItinerary[dayIndex].activities[activityIndex]);
-        localItinerary[dayIndex].activities.splice(activityIndex, 1);
-        console.log('[DELETE] Activities after delete:', localItinerary[dayIndex].activities.length);
+        dayData.activities.splice(activityIndex, 1);
+        
+        // 删除相关的交通卡片（以该景点为起点或终点的）
+        if (dayData.transports) {
+          dayData.transports = dayData.transports.filter(t => {
+            const isFromDeleted = t.fromIndex === activityIndex || t.fromName === deletedName;
+            const isToDeleted = t.toIndex === activityIndex || t.toName === deletedName;
+            if (isFromDeleted || isToDeleted) {
+              console.log('[DELETE] 删除交通卡片:', t.fromName, '->', t.toName);
+              return false;
+            }
+            return true;
+          });
+          
+          // 更新剩余交通卡片的索引（删除后索引会变化）
+          dayData.transports.forEach(t => {
+            if (t.fromIndex > activityIndex) t.fromIndex--;
+            if (t.toIndex > activityIndex) t.toIndex--;
+          });
+        }
+        
+        // 如果删除的是中间的景点，需要重新生成前后景点之间的交通
+        if (prevAttraction && nextAttraction) {
+          console.log('[DELETE] 需要重新生成交通:', prevAttraction.name, '->', nextAttraction.name);
+          
+          // 更新索引（因为删除后索引变了）
+          const newPrevIdx = prevAttraction.index > activityIndex ? prevAttraction.index - 1 : prevAttraction.index;
+          const newNextIdx = nextAttraction.index > activityIndex ? nextAttraction.index - 1 : nextAttraction.index;
+          
+          const updatedPrev = { ...prevAttraction, index: newPrevIdx };
+          const updatedNext = { ...nextAttraction, index: newNextIdx };
+          
+          if (!dayData.transports) dayData.transports = [];
+          
+          await generateTransportBetween(dayData, updatedPrev, updatedNext, city);
+        }
         
         // 更新路线数据
         route.dailyItinerary = JSON.stringify(localItinerary);
         
-        console.log('[DELETE] Sending update to backend...');
-        console.log('[DELETE] Route ID:', route.id);
-        console.log('[DELETE] Updated dailyItinerary:', route.dailyItinerary.substring(0, 200) + '...');
-        
         // 保存到后端
         const saveResponse = await fetch(`/api/ai-generated-routes/${route.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(route)
         });
         
         if (saveResponse.ok) {
-          console.log('[DELETE] Backend response OK');
+          console.log('[DELETE] 删除成功');
           alert('删除成功！');
-          // 更新本地数据
           currentRouteData = route;
-          dailyItinerary = JSON.parse(route.dailyItinerary); // 更新全局变量
-          console.log('[DELETE] Local data updated');
+          dailyItinerary = JSON.parse(route.dailyItinerary);
           await loadDayAttractions();
         } else {
-          console.error('[DELETE] Backend response error:', saveResponse.status);
+          console.error('[DELETE] 后端响应错误:', saveResponse.status);
           alert('删除失败，请重试');
         }
       } catch (error) {
@@ -2619,7 +3577,322 @@
       }
     }
     
+    // =========================
+    // 交通卡片相关函数
+    // =========================
+    
+    /**
+     * 一键生成交通路线
+     */
+    async function generateTransport(fromActivityId, toActivityId, fromName, toName, fromLocation, toLocation, dayNumber) {
+      try {
+        const response = await fetch('/api/transport-cards/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: projectId,
+            dayNumber: dayNumber,
+            fromActivityId: fromActivityId,
+            toActivityId: toActivityId,
+            fromName: fromName,
+            toName: toName,
+            fromLocation: fromLocation,
+            toLocation: toLocation
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('生成失败');
+        }
+        
+        const card = await response.json();
+        
+        // 自动展开显示详情
+        showTransportDetail(card);
+        
+        // 刷新页面
+        await refreshData();
+        
+        return card;
+      } catch (error) {
+        console.error('生成交通路线失败:', error);
+        alert('生成失败，请重试');
+      }
+    }
+    
+    /**
+     * 显示交通详情弹窗
+     */
+    function showTransportDetail(card) {
+      const modal = document.getElementById('transportDetailModal');
+      const content = document.getElementById('transportDetailContent');
+      
+      // 解析steps
+      let steps = [];
+      try {
+        steps = JSON.parse(card.stepsJson || '[]');
+      } catch (e) {
+        console.error('解析steps失败:', e);
+      }
+      
+      // 解析备选方案
+      let alternativePlans = [];
+      try {
+        alternativePlans = JSON.parse(card.alternativePlans || '[]');
+      } catch (e) {
+        console.error('解析备选方案失败:', e);
+      }
+      
+      // 渲染步骤
+      const stepsHtml = steps.map(step => {
+        let icon, color;
+        if (step.type === 'walk') {
+          icon = 'mdi:walk';
+          color = 'text-emerald-600';
+        } else if (step.type === 'subway') {
+          icon = 'mdi:subway-variant';
+          color = 'text-blue-600';
+        } else {
+          icon = 'mdi:bus';
+          color = 'text-green-600';
+        }
+        return `
+          <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+            <iconify-icon icon="${icon}" class="${color}" width="20"></iconify-icon>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-gray-800">${step.description}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // 渲染备选方案切换按钮
+      const plansHtml = alternativePlans.length > 1 ? `
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+          <p class="text-sm font-medium text-blue-800 mb-2">备选方案：</p>
+          <div class="flex gap-2">
+            ${alternativePlans.map((plan, index) => `
+              <button onclick="switchTransportPlan(${card.id}, ${index})" 
+                      class="px-3 py-1 text-sm rounded ${index === card.selectedPlanIndex ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-300'} hover:bg-blue-700 hover:text-white transition-colors">
+                方案${index + 1}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : '';
+      
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">${card.method || '交通方式'}</h3>
+              <p class="text-sm text-gray-500">${card.fromName} → ${card.toName}</p>
+            </div>
+            <button onclick="closeTransportDetail()" class="text-gray-400 hover:text-gray-600">
+              <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
+            <div class="text-center">
+              <iconify-icon icon="mdi:map-marker-distance" class="text-blue-600" width="20"></iconify-icon>
+              <p class="text-xs text-gray-500 mt-1">距离</p>
+              <p class="text-sm font-semibold">${card.distanceText || '-'}</p>
+            </div>
+            <div class="text-center">
+              <iconify-icon icon="mdi:clock-outline" class="text-green-600" width="20"></iconify-icon>
+              <p class="text-xs text-gray-500 mt-1">时长</p>
+              <p class="text-sm font-semibold">${card.durationText || '-'}</p>
+            </div>
+            <div class="text-center">
+              <iconify-icon icon="mdi:cash" class="text-orange-600" width="20"></iconify-icon>
+              <p class="text-xs text-gray-500 mt-1">费用</p>
+              <p class="text-sm font-semibold">${card.costText || '-'}</p>
+            </div>
+          </div>
+          
+          ${steps.length > 0 ? `
+            <div>
+              <h4 class="font-semibold text-gray-700 mb-2">详细路线：</h4>
+              <div class="space-y-1">
+                ${stepsHtml}
+              </div>
+            </div>
+          ` : ''}
+          
+          ${plansHtml}
+          
+          <div class="flex gap-2 pt-3 border-t">
+            <button onclick="openManualEditModal(${card.id})" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <iconify-icon icon="mdi:pencil" class="mr-1"></iconify-icon>手动编辑
+            </button>
+            <button onclick="regenerateTransport(${card.id})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+              <iconify-icon icon="mdi:refresh" class="mr-1"></iconify-icon>重新生成
+            </button>
+          </div>
+        </div>
+      `;
+      
+      modal.classList.remove('hidden');
+    }
+    
+    function closeTransportDetail() {
+      document.getElementById('transportDetailModal').classList.add('hidden');
+    }
+    
+    /**
+     * 切换交通方案
+     */
+    async function switchTransportPlan(cardId, planIndex) {
+      try {
+        const response = await fetch(`/api/transport-cards/${cardId}/switch-plan`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planIndex: planIndex })
+        });
+        
+        if (!response.ok) {
+          throw new Error('切换失败');
+        }
+        
+        const card = await response.json();
+        
+        // 更新弹窗显示
+        showTransportDetail(card);
+        
+        // 刷新页面
+        await refreshData();
+      } catch (error) {
+        console.error('切换方案失败:', error);
+        alert('切换失败，请重试');
+      }
+    }
+    
+    /**
+     * 打开手动编辑弹窗
+     */
+    function openManualEditModal(cardId) {
+      closeTransportDetail();
+      const modal = document.getElementById('manualEditModal');
+      const form = document.getElementById('manualEditForm');
+      
+      // 设置卡片ID
+      form.dataset.cardId = cardId;
+      
+      // 清空表单
+      document.getElementById('transportMethod').value = '';
+      document.getElementById('customDuration').value = '';
+      document.getElementById('customCost').value = '';
+      
+      modal.classList.remove('hidden');
+    }
+    
+    function closeManualEditModal() {
+      document.getElementById('manualEditModal').classList.add('hidden');
+    }
+    
+    /**
+     * 保存手动编辑
+     */
+    async function saveManualEdit() {
+      const form = document.getElementById('manualEditForm');
+      const cardId = form.dataset.cardId;
+      const method = document.getElementById('transportMethod').value;
+      const duration = parseInt(document.getElementById('customDuration').value) * 60; // 转为秒
+      const cost = parseFloat(document.getElementById('customCost').value);
+      
+      if (!method) {
+        alert('请选择交通方式');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/transport-cards/${cardId}/manual-edit`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            method: method,
+            duration: duration || null,
+            cost: cost || null
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('保存失败');
+        }
+        
+        closeManualEditModal();
+        await refreshData();
+        alert('保存成功');
+      } catch (error) {
+        console.error('保存失败:', error);
+        alert('保存失败，请重试');
+      }
+    }
+    
+    /**
+     * 重新生成交通路线
+     */
+    async function regenerateTransport(cardId) {
+      // TODO: 实现重新生成逻辑
+      alert('功能开发中...');
+    }
+    
     init();
   </script>
+  
+  <!-- 交通详情弹窗 -->
+  <div id="transportDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeTransportDetail()">
+    <div class="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+      <div id="transportDetailContent">
+        <!-- 动态内容 -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- 手动编辑弹窗 -->
+  <div id="manualEditModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeManualEditModal()">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-gray-800">编辑交通信息</h3>
+        <button onclick="closeManualEditModal()" class="text-gray-400 hover:text-gray-600">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      
+      <form id="manualEditForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">交通方式</label>
+          <select id="transportMethod" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            <option value="">选择交通方式</option>
+            <option value="地铁">🚇 地铁</option>
+            <option value="公交">🚌 公交</option>
+            <option value="出租车">🚖 出租车</option>
+            <option value="步行">🚶 步行</option>
+            <option value="其他">❓ 其他</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">预计时长（分钟）</label>
+          <input type="number" id="customDuration" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="输入时长" min="0" />
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">预计费用（元）</label>
+          <input type="number" id="customCost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="输入费用" min="0" step="0.1" />
+        </div>
+        
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeManualEditModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+            取消
+          </button>
+          <button type="button" onclick="saveManualEdit()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            保存
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

@@ -44,6 +44,15 @@ public class TravelProject {
     @Column(name = "total_budget")
     private Double totalBudget; // 总预算
     
+    @Column(name = "departure_location")
+    private String departureLocation; // 出发地名称（如火车站/汽车站/机场）
+    
+    @Column(name = "departure_location_coord")
+    private String departureLocationCoord; // 出发地坐标（经纬度）
+    
+    @Column(name = "departure_time")
+    private String departureTime; // 出发时间（如 "08:00"）
+    
     // Constructors
     public TravelProject() {}
     
@@ -155,6 +164,30 @@ public class TravelProject {
         this.totalBudget = totalBudget;
     }
     
+    public String getDepartureLocation() {
+        return departureLocation;
+    }
+    
+    public void setDepartureLocation(String departureLocation) {
+        this.departureLocation = departureLocation;
+    }
+    
+    public String getDepartureLocationCoord() {
+        return departureLocationCoord;
+    }
+    
+    public void setDepartureLocationCoord(String departureLocationCoord) {
+        this.departureLocationCoord = departureLocationCoord;
+    }
+    
+    public String getDepartureTime() {
+        return departureTime;
+    }
+    
+    public void setDepartureTime(String departureTime) {
+        this.departureTime = departureTime;
+    }
+    
     @Override
     public String toString() {
         return "TravelProject{" +
@@ -169,6 +202,9 @@ public class TravelProject {
                 ", currentRouteId=" + currentRouteId +
                 ", startDate='" + startDate + '\'' +
                 ", endDate='" + endDate + '\'' +
+                ", departureLocation='" + departureLocation + '\'' +
+                ", departureLocationCoord='" + departureLocationCoord + '\'' +
+                ", departureTime='" + departureTime + '\'' +
                 '}';
     }
 }

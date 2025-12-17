@@ -1,8 +1,8 @@
 /**
  * 协作界面数据适配器
  * 处理新旧两种数据格式：
- * - 旧格式: activities是字符串数组 ["08:00-09:00 早餐：老莞城茶餐厅", ...]
- * - 新格式: activities是对象数组 [{text: "08:00-09:00 早餐：老莞城茶餐厅", poiInfo: {...}}, ...]
+ * - 旧格式: activities是字符串数组 ["08:00-09:00 景点：东莞博物馆", ...]
+ * - 新格式: activities是对象数组 [{text: "东莞博物馆", poiInfo: {...}}, ...]
  */
 
 /**
@@ -31,16 +31,23 @@ function getAttractionNameFromActivity(activity) {
 }
 
 /**
- * 从activity中提取完整信息
+ * 从 activity 中提取完整信息
  */
 function parseActivity(activity) {
   let activityText = '';
   let poiInfo = null;
+  let duration = null;  // 游玩时间
+  let ticket = 0;       // 门票价格
   
   if (typeof activity === 'object' && activity.text) {
     // 新的结构化数据
     activityText = activity.text;
     poiInfo = activity.poiInfo;
+    duration = activity.duration || null;
+    ticket = activity.ticket || 0;
+    
+    // 调试日志
+    console.log('[parseActivity] 景点:', activityText, '| duration:', activity.duration, '| ticket:', activity.ticket);
   } else if (typeof activity === 'string') {
     // 兼容旧的字符串格式
     activityText = activity;
@@ -60,29 +67,18 @@ function parseActivity(activity) {
     text: activityText,
     timeRange: timeRange,
     content: content,
-    poiInfo: poiInfo
+    poiInfo: poiInfo,
+    duration: duration,  // 游玩时间
+    ticket: ticket       // 门票价格
   };
 }
 
 /**
- * 判断是否为餐饮活动
- */
-function isMealActivity(activityText) {
-  return activityText.includes('早餐') || 
-         activityText.includes('午餐') || 
-         activityText.includes('晚餐') || 
-         activityText.includes('餐饮');
-}
-
-/**
- * 判断是否为景点活动
+ * 判断是否为景点活动（移除餐饮后，所有活动都视为景点）
  */
 function isAttractionActivity(content) {
-  return content.includes('景点：') || 
-         content.includes('上午：') || 
-         content.includes('下午：') || 
-         content.includes('晚上：') ||
-         (!isMealActivity(content));
+  // 所有活动都是景点
+  return true;
 }
 
 console.log('[协作界面数据适配器] 已加载');

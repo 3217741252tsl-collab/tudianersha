@@ -44,6 +44,9 @@ public class AiGeneratedRouteService {
     @Autowired
     private AmapPoiService amapPoiService;
     
+    @Autowired
+    private AmapDirectionService amapDirectionService;
+    
     public List<AiGeneratedRoute> getAllAiGeneratedRoutes() {
         return aiGeneratedRouteRepository.findAll();
     }
@@ -91,6 +94,11 @@ public class AiGeneratedRouteService {
         // 4. Call AI to generate routes
         String aiResponse = kimiAIService.generateRoute(prompt);
         
+        // 打印Kimi返回的原始响应，检查是否包含duration和ticket
+        System.out.println("\n========== Kimi AI 原始响应 ==========");
+        System.out.println(aiResponse);
+        System.out.println("========== 响应结束 ==========\n");
+        
         // 5. Parse and save routes
         return parseAndSaveRoutes(projectId, aiResponse);
     }
@@ -107,6 +115,16 @@ public class AiGeneratedRouteService {
         prompt.append("目的地：").append(project.getDestination()).append("\n");
         prompt.append("出行时间：").append(project.getStartDate()).append(" 至 ").append(project.getEndDate()).append("\n");
         prompt.append("行程天数：").append(project.getDays()).append("天\n");
+        
+        // 出发时间
+        String departureTime = project.getDepartureTime();
+        if (departureTime != null && !departureTime.isEmpty()) {
+            prompt.append("出发时间：").append(departureTime).append("\n");
+        } else {
+            prompt.append("出发时间：08:00\n");
+            departureTime = "08:00";
+        }
+        
         prompt.append("参与人数：").append(requirements.size()).append("人\n\n");
         
         // All participants' requirements
@@ -129,16 +147,13 @@ public class AiGeneratedRouteService {
             }
         }
         
-        // Requirements for AI
-        prompt.append("\n\n请生成3条不同风格的路线方案，每条路线需要包含：\n");
-        prompt.append("1. 路线名称（例如：经典全景路线、美食寻味路线等）\n");
-        prompt.append("2. 路线特色标签（例如：均衡体验、吃货首选等）\n");
-        prompt.append("3. 每日详细行程安排（精确到小时，包含具体时间点）\n");
-        prompt.append("4. 包含景点数量\n");
-        prompt.append("5. 推荐餐厅数量\n");
-        prompt.append("6. 交通方式说明\n");
-        prompt.append("7. 总预算估算\n");
-        prompt.append("8. 推荐指数（0-100）\n\n");
+        // Requirements for AI - 生成带游玩时间和门票的景点列表
+        prompt.append("\n\n请生成3条不同风格的路线方案，每条路线包含：\n");
+        prompt.append("1. 路线名称\n");
+        prompt.append("2. 路线特色标签\n");
+        prompt.append("3. 每天的景点列表（每天3-4个景点，包含景点名称、建议游玩时间、门票价格）\n");
+        prompt.append("4. 预算估算（交通费用、门票费用、总计）\n");
+        prompt.append("5. 推荐指数\n\n");
         
         prompt.append("请严格按照以下JSON格式返回3条路线：\n");
         prompt.append("```json\n");
@@ -147,21 +162,19 @@ public class AiGeneratedRouteService {
         prompt.append("    {\n");
         prompt.append("      \"title\": \"路线名称\",\n");
         prompt.append("      \"tag\": \"特色标签\",\n");
-        prompt.append("      \"attractions\": 景点数量,\n");
-        prompt.append("      \"restaurants\": 餐厅数量,\n");
-        prompt.append("      \"transport\": \"交通方式\",\n");
-        prompt.append("      \"budget\": 总预算,\n");
-        prompt.append("      \"score\": 推荐指数,\n");
+        prompt.append("      \"score\": 85,\n");
+        prompt.append("      \"estimatedBudget\": {\n");
+        prompt.append("        \"transport\": 50,\n");
+        prompt.append("        \"tickets\": 70,\n");
+        prompt.append("        \"total\": 120\n");
+        prompt.append("      },\n");
         prompt.append("      \"dailyItinerary\": [\n");
         prompt.append("        {\n");
         prompt.append("          \"day\": 1,\n");
-        prompt.append("          \"activities\": [\n");
-        prompt.append("            \"08:00-09:00 早餐：推荐餐厅名称，品尝当地特色美食\",\n");
-        prompt.append("            \"09:30-12:00 上午：参观景点名称，游玩时长约2.5小时\",\n");
-        prompt.append("            \"12:00-13:30 午餐：餐厅名称，人均消费XX元\",\n");
-        prompt.append("            \"14:00-17:00 下午：前往景点名称，深度游览\",\n");
-        prompt.append("            \"17:30-19:00 晚餐：特色餐厅，品尝XXX\",\n");
-        prompt.append("            \"19:30-21:00 晚上：夜游景点或休闲活动\"\n");
+        prompt.append("          \"attractions\": [\n");
+        prompt.append("            {\"name\": \"可园\", \"duration\": \"1.5小时\", \"ticket\": 8},\n");
+        prompt.append("            {\"name\": \"东莞展览馆\", \"duration\": \"1小时\", \"ticket\": 0},\n");
+        prompt.append("            {\"name\": \"人民公园\", \"duration\": \"2小时\", \"ticket\": 0}\n");
         prompt.append("          ]\n");
         prompt.append("        }\n");
         prompt.append("      ]\n");
@@ -169,13 +182,30 @@ public class AiGeneratedRouteService {
         prompt.append("  ]\n");
         prompt.append("}\n");
         prompt.append("```\n");
-        prompt.append("\n重要要求：\n");
-        prompt.append("1. 每个活动必须包含具体的时间段（如：08:00-09:00）\n");
-        prompt.append("2. 活动描述要具体，包括景点名称、活动内容、预计时长\n");
-        prompt.append("3. 合理安排早中晚三餐时间\n");
-        prompt.append("4. 考虑景点之间的交通时间\n");
-        prompt.append("5. 每天安排6-8个时间段的活动\n");
-        prompt.append("6. 景点和餐厅名称要真实存在\n");
+        prompt.append("\n重要要求（必须严格遵守）：\n");
+        prompt.append("1. 景点格式要求：\n");
+        prompt.append("   - 每个景点必须是对象格式：{\"name\": \"景点名\", \"duration\": \"1.5小时\", \"ticket\": 8}\n");
+        prompt.append("   - name: 景点官方名称（高德地图可识别）\n");
+        prompt.append("   - duration: 建议游玩时间（简化格式如'1.5小时'、'2小时'、'半小时'）\n");
+        prompt.append("   - ticket: 门票价格（数字，免费为0）\n");
+        prompt.append("2. 禁止包含以下内容：\n");
+        prompt.append("   - 禁止包含时间安排（如'09:00-11:00'）\n");
+        prompt.append("   - 禁止包含餐饮推荐（如'早餐'、'午餐'、'晚餐'）\n");
+        prompt.append("   - 禁止包含交通描述（如'乘车前往'、'步行到'）\n");
+        prompt.append("   - 禁止包含活动描述（如'游览'、'参观'、'拍照'）\n");
+        prompt.append("3. 景点必须是高德地图可识别的真实景点：\n");
+        prompt.append("   - 使用官方名称（如'可园'、'东莞展览馆'、'虎门销烟纪念馆'）\n");
+        prompt.append("   - 禁止使用模糊名称（如'当地商业街'、'美食街'、'公园'）\n");
+        prompt.append("   - 禁止使用不存在的景点\n");
+        prompt.append("4. 景点距离要求（非常重要）：\n");
+        prompt.append("   - 相邻景点之间距离必须在10公里以内，最好在5公里以内\n");
+        prompt.append("   - 同一天的景点必须在同一区域\n");
+        prompt.append("   - 禁止跨区域安排景点\n");
+        prompt.append("5. 每天3-4个景点，同一景点不要重复\n");
+        prompt.append("6. 预算估算要求：\n");
+        prompt.append("   - transport: 预估全程交通费用（公交/地铁/出租车费用）\n");
+        prompt.append("   - tickets: 所有景点门票费用总和\n");
+        prompt.append("   - total: transport + tickets\n");
         
         return prompt.toString();
     }
@@ -277,6 +307,16 @@ public class AiGeneratedRouteService {
                     if (routeObj.has("budget")) {
                         route.setTotalBudget(routeObj.get("budget").getAsInt());
                     }
+                    // 解析新的预算估算字段
+                    if (routeObj.has("estimatedBudget")) {
+                        JsonObject budgetObj = routeObj.getAsJsonObject("estimatedBudget");
+                        int transport = budgetObj.has("transport") ? budgetObj.get("transport").getAsInt() : 0;
+                        int tickets = budgetObj.has("tickets") ? budgetObj.get("tickets").getAsInt() : 0;
+                        int total = budgetObj.has("total") ? budgetObj.get("total").getAsInt() : (transport + tickets);
+                        route.setTotalBudget(total);
+                        // 将详细预算信息存储到budgetsJson中，前端可以解析
+                        route.setBudgetsJson(budgetObj.toString());
+                    }
                     if (routeObj.has("score")) {
                         route.setRecommendationScore(routeObj.get("score").getAsInt());
                     }
@@ -284,7 +324,10 @@ public class AiGeneratedRouteService {
                         JsonArray originalItinerary = routeObj.getAsJsonArray("dailyItinerary");
                         
                         // 将Kimi生成的景点名称转换为带有高德POI信息的结构化数据
-                        JsonArray enrichedItinerary = enrichItineraryWithAmapData(originalItinerary, finalProject.getDestination());
+                        // 传入出发地坐标，用于计算第一天的交通
+                        String departureCoord = finalProject.getDepartureLocationCoord();
+                        String departureName = finalProject.getDepartureLocation();
+                        JsonArray enrichedItinerary = enrichItineraryWithAmapData(originalItinerary, finalProject.getDestination(), departureCoord, departureName);
                         
                         route.setDailyItinerary(enrichedItinerary.toString());
                         
@@ -379,8 +422,8 @@ public class AiGeneratedRouteService {
                             // 发生异常时也根据索引设置不同的默认图片
                             String[] defaultCovers = {
                                 "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=400&fit=crop",
-                                "https://images.unsplash.com/photo-1530521954074-e64f6810b32d?w=800&h=400&fit=crop",
-                                "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&h=400&fit=crop"
+                                "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&h=400&fit=crop",
+                                "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&h=400&fit=crop"
                             };
                             int coverIndex = i % defaultCovers.length;
                             route.setCoverImageUrl(defaultCovers[coverIndex]);
@@ -491,11 +534,11 @@ public class AiGeneratedRouteService {
     }
     
     /**
-     * 将Kimi生成的行程数据丰富为带有高德POI信息的结构化数据
-     * 原始格式: [{"day": 1, "activities": ["08:00-09:00 早餐：老莞城茶餐厅", ...]}, ...]
-     * 目标格式: [{"day": 1, "activities": [{"text": "08:00-09:00 早餐：老莞城茶餐厅", "poiInfo": {...}}, ...]}, ...]
+     * 将Kimi生成的行程数据丰富为带有高德POI信息和交通信息的结构化数据
+     * 新格式: [{"day": 1, "attractions": ["景点A", "景点B", ...]}, ...]
+     * 目标格式: [{"day": 1, "activities": [{"text": "景点A", "poiInfo": {...}}, ...], "transports": [{...}]}, ...]
      */
-    private JsonArray enrichItineraryWithAmapData(JsonArray originalItinerary, String city) {
+    private JsonArray enrichItineraryWithAmapData(JsonArray originalItinerary, String city, String departureCoord, String departureName) {
         JsonArray enrichedItinerary = new JsonArray();
         
         try {
@@ -508,57 +551,174 @@ public class AiGeneratedRouteService {
                     enrichedDay.add("day", originalDay.get("day"));
                 }
                 
-                // 处理activities
-                if (originalDay.has("activities") && originalDay.get("activities").isJsonArray()) {
+                // 用于存储当天所有有效景点的位置信息
+                List<JsonObject> activitiesWithLocation = new ArrayList<>();
+                JsonArray enrichedActivities = new JsonArray();
+                
+                // 检查是新格式(attractions)还是旧格式(activities)
+                if (originalDay.has("attractions") && originalDay.get("attractions").isJsonArray()) {
+                    // 新格式：景点对象列表 {name, duration, ticket} 或 纯字符串列表
+                    JsonArray attractions = originalDay.getAsJsonArray("attractions");
+                    
+                    for (int actIdx = 0; actIdx < attractions.size(); actIdx++) {
+                        JsonElement attractionElement = attractions.get(actIdx);
+                        String attractionName;
+                        String duration = null;
+                        int ticket = 0;
+                        
+                        // 支持两种格式：对象格式和字符串格式
+                        if (attractionElement.isJsonObject()) {
+                            JsonObject attrObj = attractionElement.getAsJsonObject();
+                            attractionName = attrObj.has("name") ? attrObj.get("name").getAsString().trim() : "";
+                            duration = attrObj.has("duration") ? attrObj.get("duration").getAsString() : null;
+                            ticket = attrObj.has("ticket") ? attrObj.get("ticket").getAsInt() : 0;
+                        } else {
+                            // 兑容旧的字符串格式
+                            attractionName = attractionElement.getAsString().trim();
+                        }
+                        
+                        if (attractionName.isEmpty()) continue;
+                        
+                        JsonObject enrichedActivity = new JsonObject();
+                        enrichedActivity.addProperty("text", attractionName);
+                        enrichedActivity.addProperty("index", actIdx);
+                        enrichedActivity.addProperty("isMeal", false);
+                        
+                        // 添加游玩时间和门票信息
+                        if (duration != null) {
+                            enrichedActivity.addProperty("duration", duration);
+                        }
+                        enrichedActivity.addProperty("ticket", ticket);
+                        
+                        // 调用高德API获取POI详细信息
+                        boolean hasValidLocation = false;
+                        try {
+                            Map<String, Object> poiInfo = amapPoiService.searchPoiWithPhotos(attractionName, city);
+                            
+                            if (poiInfo != null && !poiInfo.isEmpty()) {
+                                JsonObject poiInfoJson = gson.toJsonTree(poiInfo).getAsJsonObject();
+                                enrichedActivity.add("poiInfo", poiInfoJson);
+                                
+                                if (poiInfo.containsKey("location")) {
+                                    String location = poiInfo.get("location").toString();
+                                    String name = poiInfo.containsKey("name") ? poiInfo.get("name").toString() : attractionName;
+                                    
+                                    enrichedActivity.addProperty("location", location);
+                                    enrichedActivity.addProperty("poiName", name);
+                                    
+                                    activitiesWithLocation.add(enrichedActivity);
+                                    hasValidLocation = true;
+                                }
+                                
+                                System.out.println("[丰富行程] 景点 '" + attractionName + "' 获取高德数据成功" + 
+                                    (duration != null ? ", 游玩时间:" + duration : "") + 
+                                    ", 门票:¥" + ticket);
+                            } else {
+                                System.out.println("[丰富行程] 景点 '" + attractionName + "' 未找到高德数据");
+                            }
+                        } catch (Exception e) {
+                            System.err.println("[丰富行程] 获取 '" + attractionName + "' 高德数据失败: " + e.getMessage());
+                        }
+                        
+                        // 只有获取到有效位置的景点才添加到行程中
+                        if (hasValidLocation) {
+                            enrichedActivities.add(enrichedActivity);
+                            System.out.println("[丰富行程] ✓ 景点 '" + attractionName + "' 已添加到行程");
+                        } else {
+                            System.out.println("[丰富行程] ✗ 景点 '" + attractionName + "' 无有效位置信息，已过滤");
+                        }
+                    }
+                } else if (originalDay.has("activities") && originalDay.get("activities").isJsonArray()) {
+                    // 旧格式兼容：activities字符串数组
                     JsonArray originalActivities = originalDay.getAsJsonArray("activities");
-                    JsonArray enrichedActivities = new JsonArray();
+                    
+                    String lastLocationWithCoord = null;
+                    String lastPoiName = null;
                     
                     for (int actIdx = 0; actIdx < originalActivities.size(); actIdx++) {
                         String activityText = originalActivities.get(actIdx).getAsString();
                         JsonObject enrichedActivity = new JsonObject();
                         enrichedActivity.addProperty("text", activityText);
+                        enrichedActivity.addProperty("index", actIdx);
                         
-                        // 提取景点名称
                         String poiName = extractPoiName(activityText);
+                        // 所有活动都视为景点（已移除餐饮功能）
+                        enrichedActivity.addProperty("isMeal", false);
                         
-                        // 跳过餐饮活动（包含"餐"或"食"字的通常不是景点）
-                        boolean isMeal = activityText.contains("早餐") || activityText.contains("午餐") || 
-                                        activityText.contains("晚餐") || activityText.contains("餐饮");
-                        
-                        if (!isMeal && poiName != null && !poiName.isEmpty() && poiName.length() > 1) {
+                        boolean hasLocation = false;
+                        if (poiName != null && !poiName.isEmpty() && poiName.length() > 1) {
                             try {
-                                // 调用高德API获取POI详细信息
                                 Map<String, Object> poiInfo = amapPoiService.searchPoiWithPhotos(poiName, city);
                                 
                                 if (poiInfo != null && !poiInfo.isEmpty()) {
-                                    // 将Map转换为JsonObject
                                     JsonObject poiInfoJson = gson.toJsonTree(poiInfo).getAsJsonObject();
                                     enrichedActivity.add("poiInfo", poiInfoJson);
                                     
-                                    // 输出详细信息
-                                    System.out.println("[丰富行程] 景点 '" + poiName + "' 获取高德数据成功: " + 
-                                        (poiInfo.containsKey("name") ? poiInfo.get("name") : "Unknown"));
-                                    System.out.println("[丰富行程] - 是否有photos字段: " + poiInfo.containsKey("photos"));
-                                    if (poiInfo.containsKey("photos")) {
-                                        Object photosObj = poiInfo.get("photos");
-                                        System.out.println("[丰富行程] - photos类型: " + (photosObj != null ? photosObj.getClass().getName() : "null"));
-                                        if (photosObj instanceof List) {
-                                            System.out.println("[丰富行程] - photos数量: " + ((List<?>) photosObj).size());
-                                        }
+                                    if (poiInfo.containsKey("location")) {
+                                        String location = poiInfo.get("location").toString();
+                                        String name = poiInfo.containsKey("name") ? poiInfo.get("name").toString() : poiName;
+                                        
+                                        enrichedActivity.addProperty("location", location);
+                                        enrichedActivity.addProperty("poiName", name);
+                                        hasLocation = true;
+                                        
+                                        lastLocationWithCoord = location;
+                                        lastPoiName = name;
+                                        
+                                        activitiesWithLocation.add(enrichedActivity);
                                     }
-                                } else {
-                                    System.out.println("[丰富行程] 景点 '" + poiName + "' 未找到高德数据");
+                                    
+                                    System.out.println("[丰富行程] 景点 '" + poiName + "' 获取高德数据成功");
                                 }
                             } catch (Exception e) {
-                                System.err.println("[丰富行程] 获取景点 '" + poiName + "' 高德数据失败: " + e.getMessage());
-                                e.printStackTrace();
+                                System.err.println("[丰富行程] 获取 '" + poiName + "' 高德数据失败: " + e.getMessage());
                             }
                         }
                         
                         enrichedActivities.add(enrichedActivity);
                     }
-                    
-                    enrichedDay.add("activities", enrichedActivities);
+                }
+                
+                enrichedDay.add("activities", enrichedActivities);
+                
+                // 计算相邻景点之间的交通信息
+                JsonArray transportsArray = calculateTransportsBetweenActivities(activitiesWithLocation, city);
+                
+                // 第一天：添加从出发地到第一个景点的交通
+                if (dayIdx == 0 && departureCoord != null && !departureCoord.isEmpty() && !activitiesWithLocation.isEmpty()) {
+                    try {
+                        JsonObject firstActivity = activitiesWithLocation.get(0);
+                        String firstLocation = firstActivity.get("location").getAsString();
+                        String firstName = firstActivity.has("poiName") ? firstActivity.get("poiName").getAsString() : "第一个景点";
+                        int firstOriginalIndex = firstActivity.get("index").getAsInt();
+                        
+                        Map<String, Object> departureTransport = amapDirectionService.getTransportInfo(departureCoord, firstLocation, city, firstName);
+                        
+                        if (departureTransport != null && !departureTransport.isEmpty()) {
+                            JsonObject transportJson = gson.toJsonTree(departureTransport).getAsJsonObject();
+                            transportJson.addProperty("fromIndex", -1);
+                            transportJson.addProperty("toIndex", firstOriginalIndex);
+                            transportJson.addProperty("fromName", departureName != null ? departureName : "出发地");
+                            transportJson.addProperty("toName", firstName);
+                            transportJson.addProperty("isDeparture", true);
+                            
+                            JsonArray newTransports = new JsonArray();
+                            newTransports.add(transportJson);
+                            for (int t = 0; t < transportsArray.size(); t++) {
+                                newTransports.add(transportsArray.get(t));
+                            }
+                            transportsArray = newTransports;
+                            
+                            System.out.println("[出发地交通] 添加从 '" + departureName + "' 到 '" + firstName + "' 的交通信息");
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[出发地交通] 计算失败: " + e.getMessage());
+                    }
+                }
+                
+                if (transportsArray.size() > 0) {
+                    enrichedDay.add("transports", transportsArray);
+                    System.out.println("[交通信息] 第" + (dayIdx + 1) + "天添加了" + transportsArray.size() + "条交通信息");
                 }
                 
                 enrichedItinerary.add(enrichedDay);
@@ -574,9 +734,98 @@ public class AiGeneratedRouteService {
     }
     
     /**
+     * 计算相邻景点之间的交通信息
+     */
+    private JsonArray calculateTransportsBetweenActivities(List<JsonObject> activitiesWithLocation, String city) {
+        JsonArray transportsArray = new JsonArray();
+        
+        for (int i = 0; i < activitiesWithLocation.size() - 1; i++) {
+            JsonObject fromActivity = activitiesWithLocation.get(i);
+            JsonObject toActivity = activitiesWithLocation.get(i + 1);
+            
+            String fromLocation = fromActivity.get("location").getAsString();
+            String toLocation = toActivity.get("location").getAsString();
+            String fromName = fromActivity.has("poiName") ? fromActivity.get("poiName").getAsString() : "起点";
+            String toName = toActivity.has("poiName") ? toActivity.get("poiName").getAsString() : "终点";
+            int fromIndex = fromActivity.get("index").getAsInt();
+            int toIndex = toActivity.get("index").getAsInt();
+            
+            try {
+                System.out.println("[交通规划] 计算从 '" + fromName + "' 到 '" + toName + "' 的交通信息");
+                
+                Map<String, Object> transportInfo = amapDirectionService.getTransportInfo(fromLocation, toLocation, city, toName);
+                
+                if (transportInfo != null && !transportInfo.isEmpty()) {
+                    JsonObject transportJson = new JsonObject();
+                    transportJson.addProperty("fromIndex", fromIndex);
+                    transportJson.addProperty("toIndex", toIndex);
+                    transportJson.addProperty("fromName", fromName);
+                    transportJson.addProperty("toName", toName);
+                    
+                    // 添加交通信息字段
+                    if (transportInfo.containsKey("method")) {
+                        transportJson.addProperty("method", transportInfo.get("method").toString());
+                    }
+                    if (transportInfo.containsKey("recommendedMethod")) {
+                        transportJson.addProperty("recommendedMethod", transportInfo.get("recommendedMethod").toString());
+                    }
+                    if (transportInfo.containsKey("distance")) {
+                        transportJson.addProperty("distance", ((Number) transportInfo.get("distance")).intValue());
+                    }
+                    if (transportInfo.containsKey("distanceText")) {
+                        transportJson.addProperty("distanceText", transportInfo.get("distanceText").toString());
+                    }
+                    if (transportInfo.containsKey("duration")) {
+                        transportJson.addProperty("duration", ((Number) transportInfo.get("duration")).intValue());
+                    }
+                    if (transportInfo.containsKey("durationText")) {
+                        transportJson.addProperty("durationText", transportInfo.get("durationText").toString());
+                    }
+                    if (transportInfo.containsKey("cost")) {
+                        transportJson.addProperty("cost", ((Number) transportInfo.get("cost")).intValue());
+                    }
+                    if (transportInfo.containsKey("costText")) {
+                        transportJson.addProperty("costText", transportInfo.get("costText").toString());
+                    }
+                    if (transportInfo.containsKey("details")) {
+                        transportJson.addProperty("details", transportInfo.get("details").toString());
+                    }
+                    if (transportInfo.containsKey("warning")) {
+                        transportJson.addProperty("warning", transportInfo.get("warning").toString());
+                    }
+                    if (transportInfo.containsKey("distanceTooFar")) {
+                        transportJson.addProperty("distanceTooFar", (Boolean) transportInfo.get("distanceTooFar"));
+                    }
+                    
+                    // 添加分步交通信息（steps数组）
+                    if (transportInfo.containsKey("steps")) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> steps = (List<Map<String, Object>>) transportInfo.get("steps");
+                        if (steps != null && !steps.isEmpty()) {
+                            JsonArray stepsArray = new Gson().toJsonTree(steps).getAsJsonArray();
+                            transportJson.add("steps", stepsArray);
+                        }
+                    }
+                    
+                    transportsArray.add(transportJson);
+                    
+                    System.out.println("[交通规划] ✓ 成功: " + fromName + " → " + toName + 
+                        " | " + transportInfo.getOrDefault("distanceText", "未知") + 
+                        " | " + transportInfo.getOrDefault("durationText", "未知") + 
+                        " | " + transportInfo.getOrDefault("costText", "未知"));
+                }
+            } catch (Exception e) {
+                System.err.println("[交通规划] ✗ 失败: " + fromName + " → " + toName + " | " + e.getMessage());
+            }
+        }
+        
+        return transportsArray;
+    }
+    
+    /**
      * Extract POI name from activity string
-     * Example: "08:00-09:00 早餐：推荐餐厅" -> "推荐餐厅"
      * Example: "09:30-12:00 上午：参观西湖" -> "西湖"
+     * Example: "景点：东莞博物馆" -> "东莞博物馆"
      */
     private String extractPoiName(String activity) {
         if (activity == null || activity.isEmpty()) {
@@ -590,12 +839,10 @@ public class AiGeneratedRouteService {
         activity = activity.replaceAll("^[上下]午[:：\\s]*", "");
         activity = activity.replaceAll("^晚上[:：\\s]*", "");
         activity = activity.replaceAll("^中午[:：\\s]*", "");
-        activity = activity.replaceAll("^早餐[:：\\s]*", "");
-        activity = activity.replaceAll("^午餐[:：\\s]*", "");
-        activity = activity.replaceAll("^晚餐[:：\\s]*", "");
+        activity = activity.replaceAll("^景点[:：\\s]*", "");
         
         // 移除常见动词
-        activity = activity.replaceAll("^[参观游览前往体验品尝打卡]+", "");
+        activity = activity.replaceAll("^[参观游览前往体验打卡]+", "");
         
         // 取第一个逗号或句号之前的内容
         if (activity.contains(",")) {
@@ -622,12 +869,10 @@ public class AiGeneratedRouteService {
             dayObj.addProperty("day", day);
             
             JsonArray activities = new JsonArray();
-            activities.add("08:00-09:00 早餐：推荐当地特色餐厅");
-            activities.add("09:30-12:00 上午：参观当地热门景点，体验文化氛围");
-            activities.add("12:00-13:30 午餐：品尝地道美食，人均约50元");
-            activities.add("14:00-17:00 下午：深度游览景区，欣赏自然风光");
-            activities.add("17:30-19:00 晚餐：特色餐厅，品尝当地名菜");
-            activities.add("19:30-21:00 晚上：漫步街头或观看夜景");
+            activities.add("09:00-11:00 上午：参观当地热门景点");
+            activities.add("11:30-14:00 中午：游览文化景区");
+            activities.add("14:30-17:00 下午：深度游览景区，欣赏自然风光");
+            activities.add("17:30-19:30 晚上：漫步街头或观看夜景");
             
             dayObj.add("activities", activities);
             itinerary.add(dayObj);

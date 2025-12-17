@@ -1,6 +1,7 @@
 package com.tudianersha.controller;
 
 import com.tudianersha.service.AmapPoiService;
+import com.tudianersha.service.AmapDirectionService;
 import com.tudianersha.service.KimiAIService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,35 @@ public class AmapTestController {
     private AmapPoiService amapPoiService;
     
     @Autowired
+    private AmapDirectionService amapDirectionService;
+    
+    @Autowired
     private KimiAIService kimiAIService;
+    
+    /**
+     * 获取两点之间的交通信息
+     * GET /api/amap-test/direction?origin=116.481028,39.989643&destination=116.434446,39.90816&city=北京&destName=景点名称
+     */
+    @GetMapping("/direction")
+    public ResponseEntity<Map<String, Object>> getDirection(
+            @RequestParam String origin,
+            @RequestParam String destination,
+            @RequestParam(required = false, defaultValue = "北京") String city,
+            @RequestParam(required = false) String destName) {
+        
+        System.out.println("[AmapTestController] /direction called - origin=" + origin + ", destination=" + destination + ", city=" + city + ", destName=" + destName);
+        
+        try {
+            Map<String, Object> transportInfo = amapDirectionService.getTransportInfo(origin, destination, city, destName);
+            return new ResponseEntity<>(transportInfo, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("[AmapTestController] Direction error: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("error", e.getMessage());
+            return new ResponseEntity<>(errorData, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
     
     /**
      * 测试获取景点图片
@@ -148,7 +177,11 @@ public class AmapTestController {
         
         try {
             String prompt = String.format(
-                "请为%s的%s生成一段200字左右的景点介绍，包括历史背景、特色亮点、游览建议。请直接返回介绍文字，不需要标题。",
+                "请查找%s的%s的以下信息，并按格式返回：\n" +
+                "1. 【开放时间】：该景点的开放时间（如果查不到写'请查看官方公告'）\n" +
+                "2. 【门票信息】：门票价格、购票方式、是否需要预约（如果查不到写'请查看官方公告'）\n" +
+                "3. 【游览建议】：简要的游览贴士和建议（约50字）\n" +
+                "请直接返回以上内容，不需要其他开场白和结束语。",
                 city, name
             );
             

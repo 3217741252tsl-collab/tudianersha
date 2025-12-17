@@ -133,20 +133,12 @@ public class ItineraryPdfService {
                 if (dayData.has("activities")) {
                     JsonArray activities = dayData.getAsJsonArray("activities");
                     
-                    // 创建表格（添加预算列）
-                    Table table = new Table(UnitValue.createPercentArray(new float[]{15, 60, 25}))
+                    // 创建表格（删除时间列，只保留活动内容和预算）
+                    Table table = new Table(UnitValue.createPercentArray(new float[]{75, 25}))
                             .useAllAvailableWidth()
                             .setMarginBottom(10);
                     
                     // 表头
-                    Cell headerTime = new Cell()
-                            .add(new Paragraph("时间").setFont(font).setFontSize(10).setBold())
-                            .setBackgroundColor(new DeviceRgb(67, 126, 234))
-                            .setFontColor(ColorConstants.WHITE)
-                            .setTextAlignment(TextAlignment.CENTER)
-                            .setPadding(8);
-                    table.addCell(headerTime);
-                    
                     Cell headerActivity = new Cell()
                             .add(new Paragraph("活动内容").setFont(font).setFontSize(10).setBold())
                             .setBackgroundColor(new DeviceRgb(67, 126, 234))
@@ -163,29 +155,64 @@ public class ItineraryPdfService {
                             .setPadding(8);
                     table.addCell(headerBudget);
                     
+                    // 获取当天的交通信息
+                    JsonArray transports = dayData.has("transports") ? dayData.getAsJsonArray("transports") : new JsonArray();
+                    
                     // 计算当日总预算
                     double dayTotalBudget = 0.0;
+                    
+                    // 检查是否有出发地交通（第一天）
+                    JsonObject departureTransport = null;
+                    for (int t = 0; t < transports.size(); t++) {
+                        JsonObject transport = transports.get(t).getAsJsonObject();
+                        if ((transport.has("fromIndex") && transport.get("fromIndex").getAsInt() == -1) || 
+                            (transport.has("isDeparture") && transport.get("isDeparture").getAsBoolean())) {
+                            departureTransport = transport;
+                            break;
+                        }
+                    }
+                    
+                    // 如果有出发地交通，先添加出发地行
+                    if (departureTransport != null) {
+                        String fromName = departureTransport.has("fromName") ? departureTransport.get("fromName").getAsString() : "出发地";
+                        
+                        // 出发地行
+                        Cell depCell = new Cell()
+                                .add(new Paragraph("[出发] " + fromName).setFont(font).setFontSize(10).setBold())
+                                .setBackgroundColor(new DeviceRgb(245, 243, 255))
+                                .setPadding(8);
+                        table.addCell(depCell);
+                        table.addCell(new Cell().add(new Paragraph("-").setFont(font).setFontSize(10)).setTextAlignment(TextAlignment.CENTER).setPadding(8));
+                        
+                        // 出发地交通信息（详细）
+                        addDetailedTransportCell(table, font, departureTransport);
+                    }
 
                     for (int actIdx = 0; actIdx < activities.size(); actIdx++) {
                         JsonElement activityElement = activities.get(actIdx);
                         
                         // 处理新的数据结构：{text: "...", poiInfo: {...}} 或者纯字符串
                         String activity;
+                        String poiName = "";
                         if (activityElement.isJsonObject()) {
                             JsonObject activityObj = activityElement.getAsJsonObject();
                             activity = activityObj.has("text") ? activityObj.get("text").getAsString() : activityElement.toString();
+                            // 获取景点名称
+                            if (activityObj.has("poiInfo")) {
+                                JsonObject poiInfo = activityObj.getAsJsonObject("poiInfo");
+                                if (poiInfo.has("name")) {
+                                    poiName = poiInfo.get("name").getAsString();
+                                }
+                            }
                         } else {
                             activity = activityElement.getAsString();
                         }
                         
-                        // 提取时间和活动内容
-                        String time = "";
+                        // 提取活动内容（去除时间前缀）
                         String content = activity;
-                        // 使用正则表达式匹配时间段格式：HH:MM-HH:MM
                         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^(\\d{2}:\\d{2}-\\d{2}:\\d{2})\\s*(.*)");
                         java.util.regex.Matcher matcher = pattern.matcher(activity);
                         if (matcher.matches()) {
-                            time = matcher.group(1);
                             content = matcher.group(2);
                         }
                         
@@ -196,17 +223,9 @@ public class ItineraryPdfService {
                             dayTotalBudget += budget;
                         }
 
-                        // 时间单元格
-                        Cell timeCell = new Cell()
-                                .add(new Paragraph(time).setFont(font).setFontSize(10))
-                                .setBackgroundColor(new DeviceRgb(240, 242, 245))
-                                .setTextAlignment(TextAlignment.CENTER)
-                                .setPadding(8);
-                        table.addCell(timeCell);
-
                         // 活动单元格
                         Cell contentCell = new Cell()
-                                .add(new Paragraph(content).setFont(font).setFontSize(10))
+                                .add(new Paragraph("[" + (actIdx + 1) + "] " + content).setFont(font).setFontSize(10))
                                 .setPadding(8);
                         table.addCell(contentCell);
                         
@@ -221,6 +240,22 @@ public class ItineraryPdfService {
                             budgetCell.setBackgroundColor(new DeviceRgb(230, 244, 234));
                         }
                         table.addCell(budgetCell);
+                        
+                        // 查找并添加到下一个景点的交通信息
+                        for (int t = 0; t < transports.size(); t++) {
+                            JsonObject transport = transports.get(t).getAsJsonObject();
+                            // 跳过出发地交通（已经处理过）
+                            if ((transport.has("fromIndex") && transport.get("fromIndex").getAsInt() == -1) || 
+                                (transport.has("isDeparture") && transport.get("isDeparture").getAsBoolean())) {
+                                continue;
+                            }
+                            
+                            // 检查是否是当前景点的出发交通
+                            if (transport.has("fromIndex") && transport.get("fromIndex").getAsInt() == actIdx) {
+                                addDetailedTransportCell(table, font, transport);
+                                break;
+                            }
+                        }
                     }
                     
                     document.add(table);
@@ -278,5 +313,128 @@ public class ItineraryPdfService {
 
         document.close();
         return baos.toByteArray();
+    }
+    
+    /**
+     * 添加详细交通信息单元格
+     */
+    private void addDetailedTransportCell(Table table, PdfFont font, JsonObject transport) {
+        // 获取摘要信息
+        String summary = buildTransportSummary(transport);
+        
+        // 获取详细步骤
+        java.util.List<String> steps = buildTransportSteps(transport);
+        
+        // 构建内容
+        StringBuilder content = new StringBuilder();
+        content.append(">>> ").append(summary);
+        
+        // 如果有详细步骤，添加到内容中
+        if (!steps.isEmpty()) {
+            content.append("\n");
+            for (int i = 0; i < steps.size(); i++) {
+                content.append("   ").append(i + 1).append(". ").append(steps.get(i));
+                if (i < steps.size() - 1) {
+                    content.append("\n");
+                }
+            }
+        }
+        
+        Cell transportCell = new Cell(1, 2)
+                .add(new Paragraph(content.toString()).setFont(font).setFontSize(9))
+                .setBackgroundColor(new DeviceRgb(240, 253, 244))
+                .setFontColor(new DeviceRgb(22, 163, 74))
+                .setPadding(6);
+        table.addCell(transportCell);
+    }
+    
+    /**
+     * 构建交通信息字符串（摘要）
+     */
+    private String buildTransportSummary(JsonObject transport) {
+        StringBuilder sb = new StringBuilder();
+        
+        // 交通方式
+        if (transport.has("method") && !transport.get("method").isJsonNull()) {
+            sb.append(transport.get("method").getAsString());
+        } else if (transport.has("recommendedMethod") && !transport.get("recommendedMethod").isJsonNull()) {
+            sb.append(transport.get("recommendedMethod").getAsString());
+        } else {
+            sb.append("交通");
+        }
+        
+        // 时长
+        if (transport.has("durationText") && !transport.get("durationText").isJsonNull()) {
+            sb.append(" | ").append(transport.get("durationText").getAsString());
+        } else if (transport.has("duration") && !transport.get("duration").isJsonNull()) {
+            int duration = transport.get("duration").getAsInt();
+            int minutes = (int) Math.ceil(duration / 60.0);
+            sb.append(" | 约").append(minutes).append("分钟");
+        }
+        
+        // 距离
+        if (transport.has("distanceText") && !transport.get("distanceText").isJsonNull()) {
+            sb.append(" | ").append(transport.get("distanceText").getAsString());
+        } else if (transport.has("distance") && !transport.get("distance").isJsonNull()) {
+            double distance = transport.get("distance").getAsDouble();
+            if (distance >= 1000) {
+                sb.append(" | ").append(String.format("%.1fkm", distance / 1000));
+            } else {
+                sb.append(" | ").append((int) distance).append("m");
+            }
+        }
+        
+        // 费用
+        if (transport.has("costText") && !transport.get("costText").isJsonNull()) {
+            String costText = transport.get("costText").getAsString();
+            if (!costText.equals("免费") && !costText.equals("0")) {
+                sb.append(" | ").append(costText);
+            }
+        }
+        
+        // 目的地
+        if (transport.has("toName") && !transport.get("toName").isJsonNull()) {
+            sb.append(" -> ").append(transport.get("toName").getAsString());
+        }
+        
+        return sb.toString();
+    }
+    
+    /**
+     * 构建详细交通步骤列表
+     */
+    private java.util.List<String> buildTransportSteps(JsonObject transport) {
+        java.util.List<String> stepsList = new java.util.ArrayList<>();
+        
+        if (transport.has("steps") && transport.get("steps").isJsonArray()) {
+            JsonArray steps = transport.getAsJsonArray("steps");
+            for (int i = 0; i < steps.size(); i++) {
+                JsonObject step = steps.get(i).getAsJsonObject();
+                String type = step.has("type") ? step.get("type").getAsString() : "";
+                String description = step.has("description") ? step.get("description").getAsString() : "";
+                
+                // 过滤极短距离的步行（<50米）
+                if (type.equals("walk") && step.has("distance")) {
+                    double distance = step.get("distance").getAsDouble();
+                    if (distance < 50) continue;
+                }
+                
+                // 根据类型添加前缀
+                String prefix;
+                switch (type) {
+                    case "walk": prefix = "[步行] "; break;
+                    case "subway": prefix = "[地铁] "; break;
+                    case "bus": prefix = "[公交] "; break;
+                    default: prefix = "";
+                }
+                
+                // 清理描述中的换行符
+                description = description.replace("\n", " ");
+                
+                stepsList.add(prefix + description);
+            }
+        }
+        
+        return stepsList;
     }
 }

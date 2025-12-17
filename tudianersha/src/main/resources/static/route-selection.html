@@ -119,6 +119,7 @@
     const projectId = getQueryParam('projectId') || getQueryParam('id');
     let selectedRouteId = null;
     let aiRoutes = [];
+    let currentProject = null; // 存储项目信息，包含出发时间
 
     document.addEventListener('DOMContentLoaded', () => {
       init();
@@ -143,6 +144,7 @@
       try {
         const result = await get(`/travel-projects/${projectId}`);
         if (result.success) {
+          currentProject = result.data; // 存储项目数据
           displayProjectInfo(result.data);
         }
       } catch (error) {
@@ -213,6 +215,50 @@
       ];
       const imageUrl = route.coverImageUrl || defaultImages[index % defaultImages.length];
       
+      // 提取代表性景点（3-4个）
+      let representativeAttractions = [];
+      try {
+        if (route.dailyItinerary) {
+          const itinerary = JSON.parse(route.dailyItinerary);
+          if (Array.isArray(itinerary)) {
+            for (const day of itinerary) {
+              const activities = day.activities || [];
+              for (const act of activities) {
+                if (act.text && representativeAttractions.length < 4) {
+                  representativeAttractions.push(act.text);
+                }
+              }
+              if (representativeAttractions.length >= 4) break;
+            }
+          }
+        }
+      } catch (e) {
+        console.log('解析行程数据失败:', e);
+      }
+      
+      // 解析预算信息
+      let transportBudget = 0;
+      let ticketsBudget = 0;
+      try {
+        if (route.budgetsJson) {
+          const budgets = JSON.parse(route.budgetsJson);
+          transportBudget = budgets.transport || 0;
+          ticketsBudget = budgets.tickets || 0;
+        } else if (route.totalBudget) {
+          // 兑容旧数据，简单估算
+          transportBudget = Math.round(route.totalBudget * 0.4);
+          ticketsBudget = Math.round(route.totalBudget * 0.6);
+        }
+      } catch (e) {
+        console.log('解析预算失败:', e);
+      }
+      const totalBudget = transportBudget + ticketsBudget || route.totalBudget || 120;
+      
+      // 景点展示文字
+      const attractionsText = representativeAttractions.length > 0 
+        ? representativeAttractions.join(' → ') 
+        : '暂无景点信息';
+      
       return `
         <div class="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden card-hover ${isSelected ? 'selected-card' : ''}" 
              id="plan${route.id}" data-route-id="${route.id}">
@@ -231,25 +277,33 @@
               <h4 class="text-lg font-semibold">${route.routeTitle || '路线方案' + (index + 1)}</h4>
               <span class="bg-light text-primary text-xs px-2 py-1 rounded-full">${route.routeTag || 'AI生成'}</span>
             </div>
-            <div class="grid grid-cols-3 gap-2 text-sm text-gray-600 mb-4">
-              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
-                <i class="fa fa-camera text-primary mb-1"></i>
-                <span>${route.attractionsCount || 10}个景点</span>
+            
+            <!-- 代表性景点 -->
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div class="flex items-center mb-2">
+                <i class="fa fa-map-marker text-primary mr-2"></i>
+                <span class="text-sm text-gray-600 font-medium">代表景点</span>
               </div>
-              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
-                <i class="fa fa-cutlery text-primary mb-1"></i>
-                <span>${route.restaurantsCount || 6}家餐厅</span>
-              </div>
-              <div class="flex flex-col items-center p-2 bg-gray-50 rounded">
-                <i class="fa fa-bus text-primary mb-1"></i>
-                <span>${route.transportMode || '公共交通'}</span>
-              </div>
+              <p class="text-sm text-gray-800 leading-relaxed">${attractionsText}</p>
             </div>
+            
+            <!-- 交通方式 -->
+            <div class="flex items-center text-sm text-gray-600 mb-4">
+              <i class="fa fa-bus text-primary mr-2"></i>
+              <span>交通方式：${route.transportMode || '公共交通'}</span>
+            </div>
+            
+            <!-- 预算分开显示 -->
             <div class="border-t border-gray-100 pt-3">
               <div class="flex justify-between items-center mb-2">
-                <span class="text-gray-500 text-sm">总预算</span>
-                <span class="font-semibold">¥${route.totalBudget || 5000}</span>
+                <span class="text-gray-500 text-sm">预算估算</span>
+                <span class="text-sm text-gray-600">
+                  <span class="text-primary">交通：¥${transportBudget}</span> + 
+                  <span class="text-green-600">门票：¥${ticketsBudget}</span> = 
+                  <span class="font-semibold text-gray-800">¥${totalBudget}</span>
+                </span>
               </div>
+              <p class="text-xs text-gray-400 mb-3">门票价格仅供参考，请以实际为准</p>
               <div class="flex space-x-2">
                 <button class="detail-btn flex-1 text-sm bg-white border border-primary text-primary hover:bg-light py-2 rounded-md btn-effect" 
                         data-route-id="${route.id}">
@@ -334,19 +388,15 @@
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div class="bg-gray-50 p-3 rounded">
               <span class="text-gray-500">景点门票</span>
-              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.3)}</p>
-            </div>
-            <div class="bg-gray-50 p-3 rounded">
-              <span class="text-gray-500">餐饮费用</span>
-              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.25)}</p>
-            </div>
-            <div class="bg-gray-50 p-3 rounded">
-              <span class="text-gray-500">住宿费用</span>
-              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.35)}</p>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.4)}</p>
             </div>
             <div class="bg-gray-50 p-3 rounded">
               <span class="text-gray-500">交通费用</span>
-              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.1)}</p>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.3)}</p>
+            </div>
+            <div class="bg-gray-50 p-3 rounded col-span-2">
+              <span class="text-gray-500">住宿费用</span>
+              <p class="font-semibold text-lg">¥${Math.floor((route.totalBudget || 5000) * 0.3)}</p>
             </div>
           </div>
         </div>
@@ -382,49 +432,235 @@
             `;
             
             if (day.activities && Array.isArray(day.activities)) {
-              day.activities.forEach((activity, actIndex) => {
-                // 处理新的数据结构：{text: "...", poiInfo: {...}}
-                let activityText = '';
-                if (typeof activity === 'object' && activity.text) {
-                  // 新的结构化数据
-                  activityText = activity.text;
-                } else if (typeof activity === 'string') {
-                  // 兼容旧的字符串格式
-                  activityText = activity;
-                }
+              // 获取当天的交通信息
+              const transports = day.transports || [];
+              
+              // 检查是否有出发地交通信息（第一天且fromIndex=-1）
+              const departureTransport = transports.find(t => t.fromIndex === -1 || t.isDeparture);
+              if (departureTransport && day.day === 1) {
+                // 获取出发时间
+                const departureTime = currentProject?.departureTime || '08:00';
                 
-                // 提取时间和内容
-                const timeMatch = activityText.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
-                let timeStr = '';
-                let contentStr = activityText;
-                let timeIcon = 'fa-clock-o';
-                
-                if (timeMatch) {
-                  timeStr = timeMatch[1];
-                  contentStr = timeMatch[2];
-                  
-                  // 根据时间选择图标
-                  const hour = parseInt(timeStr.split(':')[0]);
-                  if (hour >= 6 && hour < 12) {
-                    timeIcon = 'fa-sun-o';  // 早上/上午
-                  } else if (hour >= 12 && hour < 18) {
-                    timeIcon = 'fa-cloud';  // 下午
-                  } else {
-                    timeIcon = 'fa-moon-o'; // 晚上
-                  }
-                }
-                
+                // 渲染出发地标签（包含出发时间）
                 detailHTML += `
-                  <div class="flex items-start bg-white p-3 rounded shadow-sm hover:shadow-md transition-shadow">
+                  <div class="flex items-start bg-purple-50 p-3 rounded shadow-sm mb-2">
                     <div class="flex-shrink-0 mr-3">
-                      <i class="fa ${timeIcon} ${iconColor} text-lg"></i>
+                      <i class="fa fa-map-marker text-purple-600 text-lg"></i>
                     </div>
                     <div class="flex-1">
-                      ${timeStr ? `<div class="text-xs ${iconColor} font-semibold mb-1">${timeStr}</div>` : ''}
-                      <div class="text-gray-700">${contentStr}</div>
+                      <div class="flex items-center justify-between">
+                        <div class="text-xs text-purple-600 font-semibold">出发地</div>
+                        <div class="text-xs text-purple-500 font-medium"><i class="fa fa-clock-o mr-1"></i>${departureTime} 出发</div>
+                      </div>
+                      <div class="text-gray-700 font-medium mt-1">${departureTransport.fromName || '出发地'}</div>
                     </div>
                   </div>
                 `;
+                
+                // 渲染出发地到第一个景点的交通信息
+                const isWarning = departureTransport.distanceTooFar;
+                if (departureTransport.steps && departureTransport.steps.length > 0) {
+                  let stepsHtml = departureTransport.steps.map((step) => {
+                    let icon, color;
+                    if (step.type === 'walk') { icon = 'fa-male'; color = 'text-emerald-600'; }
+                    else if (step.type === 'subway') { icon = 'fa-subway'; color = 'text-blue-600'; }
+                    else { icon = 'fa-bus'; color = 'text-green-600'; }
+                    const descLines = (step.description || '').split('\n');
+                    const mainDesc = descLines[0];
+                    const subDesc = descLines.length > 1 ? descLines.slice(1).join('') : '';
+                    return `<div class="flex items-start gap-2 py-1"><i class="fa ${icon} ${color} mt-1"></i><div class="flex-1 text-left"><span class="text-sm ${color} font-medium">${mainDesc}</span>${subDesc ? `<div class="text-xs text-gray-500">${subDesc}</div>` : ''}</div></div>`;
+                  }).join('<div class="flex justify-center text-gray-400"><i class="fa fa-angle-down"></i></div>');
+                  
+                  detailHTML += `
+                    <div class="${isWarning ? 'bg-red-50' : 'bg-purple-50'} p-3 rounded-lg my-2 border-l-4 border-purple-400">
+                      <div class="flex items-center gap-2 text-xs text-purple-600 font-medium mb-2">
+                        <i class="fa fa-arrow-right"></i>
+                        前往 ${departureTransport.toName || '第一个景点'}
+                      </div>
+                      <div class="flex items-center justify-center gap-4 text-xs text-gray-600 mb-2">
+                        <span><i class="fa fa-road"></i> ${departureTransport.distanceText || '未知'}</span>
+                        <span><i class="fa fa-clock-o"></i> ${departureTransport.durationText || '未知'}</span>
+                        <span class="font-medium text-blue-600"><i class="fa fa-money"></i> ${departureTransport.costText || '免费'}</span>
+                      </div>
+                      <div class="border-t border-purple-200 pt-2">${stepsHtml}</div>
+                    </div>
+                  `;
+                } else {
+                  const method = departureTransport.method || '公交/地铁';
+                  detailHTML += `
+                    <div class="bg-purple-50 p-2 rounded-lg my-2 flex items-center justify-center gap-4 text-sm border-l-4 border-purple-400">
+                      <span class="font-medium text-purple-600">${method}</span>
+                      <span class="text-gray-600"><i class="fa fa-road"></i> ${departureTransport.distanceText || '未知'}</span>
+                      <span class="text-gray-600"><i class="fa fa-clock-o"></i> ${departureTransport.durationText || '未知'}</span>
+                      <span class="font-medium text-blue-600"><i class="fa fa-money"></i> ${departureTransport.costText || '免费'}</span>
+                    </div>
+                  `;
+                }
+              }
+              
+              day.activities.forEach((activity, actIndex) => {
+                // 处理数据结构：{text: "景点名称", poiInfo: {...}}
+                let activityText = '';
+                if (typeof activity === 'object' && activity.text) {
+                  activityText = activity.text;
+                } else if (typeof activity === 'string') {
+                  activityText = activity;
+                }
+                
+                // 检查是否是新格式（纯景点名称，没有时间）
+                const timeMatch = activityText.match(/^(\d{2}:\d{2}-\d{2}:\d{2})\s*(.*)/);
+                const isNewFormat = !timeMatch; // 新格式没有时间前缀
+                
+                let displayContent = activityText;
+                let displayTime = '';
+                
+                if (timeMatch) {
+                  displayTime = timeMatch[1];
+                  displayContent = timeMatch[2];
+                }
+                
+                // 景点卡片（新格式使用地图图标）
+                const cardIcon = isNewFormat ? 'fa-map-marker' : 'fa-clock-o';
+                
+                detailHTML += `
+                  <div class="flex items-start bg-white p-3 rounded shadow-sm hover:shadow-md transition-shadow border-l-4 ${iconColor.replace('text-', 'border-')}">
+                    <div class="flex-shrink-0 mr-3">
+                      <i class="fa ${cardIcon} ${iconColor} text-lg"></i>
+                    </div>
+                    <div class="flex-1">
+                      ${displayTime ? `<div class="text-xs ${iconColor} font-semibold mb-1">${displayTime}</div>` : ''}
+                      <div class="text-gray-800 font-medium">${displayContent}</div>
+                      ${(typeof activity === 'object' && activity.poiInfo && activity.poiInfo.address) ? 
+                        `<div class="text-xs text-gray-500 mt-1"><i class="fa fa-map-pin"></i> ${activity.poiInfo.address}</div>` : ''}
+                      ${(typeof activity === 'object') ? `
+                        <div class="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                          ${activity.duration ? `<span class="flex items-center gap-1"><i class="fa fa-clock-o"></i>游玩${activity.duration}</span>` : ''}
+                          ${activity.ticket !== undefined && activity.ticket !== null ? (activity.ticket > 0 ? `<span class="flex items-center gap-1"><i class="fa fa-ticket"></i>¥${activity.ticket}</span>` : '<span class="text-green-600">免费</span>') : ''}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+                
+                // 查找当前景点到下一个景点的交通信息
+                // 交通显示在当前景点（fromIndex）之后
+                const activityIndex = (typeof activity === 'object' && activity.index !== undefined) ? activity.index : actIndex;
+                const transport = transports.find(t => 
+                  !t.isDeparture && 
+                  t.fromIndex !== -1 && 
+                  t.fromIndex === activityIndex
+                );
+                // 过滤极短距离的交通（<100米）
+                if (transport && transport.distance && transport.distance >= 100) {
+                  // 距离过远警告
+                  const isWarning = transport.distanceTooFar;
+                  
+                  // 如果有steps数据，使用分步展示
+                  if (transport.steps && transport.steps.length > 0) {
+                    // 过滤掉距离<50米的步行
+                    const filteredSteps = transport.steps.filter(step => {
+                      if (step.type === 'walk' && step.distance && step.distance < 50) {
+                        return false; // 过滤掉极短步行
+                      }
+                      return true;
+                    });
+                    
+                    if (filteredSteps.length === 0) {
+                      // 如果过滤后没有步骤，跳过交通展示
+                      return;
+                    }
+                    
+                    let stepsHtml = filteredSteps.map((step, index) => {
+                      let icon, color;
+                      if (step.type === 'walk') {
+                        icon = 'fa-male';
+                        color = 'text-emerald-600';
+                      } else if (step.type === 'subway') {
+                        icon = 'fa-subway';
+                        color = 'text-blue-600';
+                      } else {
+                        icon = 'fa-bus';
+                        color = 'text-green-600';
+                      }
+                      
+                      // 分步描述
+                      const descLines = (step.description || '').split('\n');
+                      const mainDesc = descLines[0];
+                      const subDesc = descLines.length > 1 ? descLines.slice(1).join('') : '';
+                      
+                      return `
+                        <div class="flex items-start gap-2 py-1">
+                          <i class="fa ${icon} ${color} mt-1"></i>
+                          <div class="flex-1 text-left">
+                            <span class="text-sm ${color} font-medium">${mainDesc}</span>
+                            ${subDesc ? `<div class="text-xs text-gray-500">${subDesc}</div>` : ''}
+                          </div>
+                        </div>
+                      `;
+                    }).join('<div class="flex justify-center text-gray-400"><i class="fa fa-angle-down"></i></div>');
+                    
+                    detailHTML += `
+                      <div class="${isWarning ? 'bg-red-50' : 'bg-gray-50'} p-3 rounded-lg my-2">
+                        <div class="flex items-center justify-center gap-4 text-xs text-gray-600 mb-2">
+                          <span><i class="fa fa-road"></i> ${transport.distanceText || '未知'}</span>
+                          <span><i class="fa fa-clock-o"></i> ${transport.durationText || '未知'}</span>
+                          <span class="font-medium text-blue-600"><i class="fa fa-money"></i> ${transport.costText || '免费'}</span>
+                          ${isWarning ? '<span class="text-red-500"><i class="fa fa-exclamation-triangle"></i> 距离过远</span>' : ''}
+                        </div>
+                        <div class="border-t border-gray-200 pt-2">
+                          ${stepsHtml}
+                        </div>
+                        ${transport.warning ? `<div class="text-xs text-red-500 text-center mt-1"><i class="fa fa-warning"></i> ${transport.warning}</div>` : ''}
+                      </div>
+                    `;
+                  } else {
+                    // 向后兼容：没有steps时使用旧的展示方式
+                    const method = transport.method || transport.recommendedMethod || '公交/地铁';
+                    let transportIcon = 'fa-bus';
+                    let transportColor = 'text-green-600';
+                    let transportBg = 'bg-green-50';
+                    
+                    if (method.includes('步行')) {
+                      transportIcon = 'fa-male';
+                      transportColor = 'text-emerald-600';
+                      transportBg = 'bg-emerald-50';
+                    } else if (method.includes('地铁')) {
+                      transportIcon = 'fa-subway';
+                      transportColor = 'text-blue-600';
+                      transportBg = 'bg-blue-50';
+                    } else if (method.includes('驾车') || method.includes('打车')) {
+                      transportIcon = 'fa-car';
+                      transportColor = 'text-purple-600';
+                      transportBg = 'bg-purple-50';
+                    }
+                    
+                    if (isWarning) {
+                      transportColor = 'text-red-600';
+                      transportBg = 'bg-red-50';
+                    }
+                    
+                    detailHTML += `
+                      <div class="${transportBg} p-2 rounded-lg my-2 flex items-center justify-center gap-4 text-sm">
+                        <div class="flex items-center gap-2">
+                          <i class="fa ${transportIcon} ${transportColor}"></i>
+                          <span class="font-medium ${transportColor}">${method}</span>
+                        </div>
+                        <span class="text-gray-600"><i class="fa fa-road"></i> ${transport.distanceText || '未知'}</span>
+                        <span class="text-gray-600"><i class="fa fa-clock-o"></i> ${transport.durationText || '未知'}</span>
+                        <span class="font-medium ${transportColor}"><i class="fa fa-money"></i> ${transport.costText || '免费'}</span>
+                        ${isWarning ? '<span class="text-red-500"><i class="fa fa-exclamation-triangle"></i> 距离过远</span>' : ''}
+                      </div>
+                    `;
+                    
+                    if (transport.details) {
+                      detailHTML += `
+                        <div class="text-xs text-gray-500 text-center mb-2 px-4">
+                          <i class="fa fa-info-circle"></i> ${transport.details}
+                        </div>
+                      `;
+                    }
+                  }
+                }
               });
             }
             detailHTML += `</div></div>`;
