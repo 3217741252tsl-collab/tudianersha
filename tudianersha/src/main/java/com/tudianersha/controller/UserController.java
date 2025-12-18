@@ -129,19 +129,35 @@ public class UserController {
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User userDetails) {
-        Optional<User> user = userService.getUserById(id);
-        if (user.isPresent()) {
-            User existingUser = user.get();
-            existingUser.setUsername(userDetails.getUsername());
-            existingUser.setEmail(userDetails.getEmail());
-            existingUser.setPassword(userDetails.getPassword());
-            
-            User updatedUser = userService.saveUser(existingUser);
-            return new ResponseEntity<>(updatedUser, HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateUser(@PathVariable Long id, @RequestBody Map<String, String> updates) {
+        Optional<User> userOpt = userService.getUserById(id);
+        if (!userOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("用户不存在"));
         }
+        
+        User existingUser = userOpt.get();
+        
+        // 只更新用户名（如果提供了）
+        if (updates.containsKey("username")) {
+            String newUsername = updates.get("username");
+            // 检查新用户名是否已被其他用户使用
+            Optional<User> existingWithName = userService.findByUsername(newUsername);
+            if (existingWithName.isPresent() && !existingWithName.get().getId().equals(id)) {
+                return ResponseEntity.ok(ApiResponse.error("用户名已被占用"));
+            }
+            existingUser.setUsername(newUsername);
+        }
+        
+        User updatedUser = userService.saveUser(existingUser);
+        
+        // 返回更新后的用户信息
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("id", updatedUser.getId());
+        userData.put("username", updatedUser.getUsername());
+        userData.put("email", updatedUser.getEmail());
+        
+        return ResponseEntity.ok(ApiResponse.success("更新成功", userData));
     }
     
     @DeleteMapping("/{id}")

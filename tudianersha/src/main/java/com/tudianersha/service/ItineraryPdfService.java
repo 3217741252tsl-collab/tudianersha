@@ -20,8 +20,12 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.tudianersha.entity.AiGeneratedRoute;
 import com.tudianersha.entity.TravelProject;
+import com.tudianersha.entity.ProjectTask;
+import com.tudianersha.entity.User;
 import com.tudianersha.repository.AiGeneratedRouteRepository;
 import com.tudianersha.repository.TravelProjectRepository;
+import com.tudianersha.repository.ProjectTaskRepository;
+import com.tudianersha.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +43,12 @@ public class ItineraryPdfService {
 
     @Autowired
     private AiGeneratedRouteRepository routeRepository;
+    
+    @Autowired
+    private ProjectTaskRepository taskRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
 
     /**
      * 生成行程PDF
@@ -303,6 +313,7 @@ public class ItineraryPdfService {
         }
 
         // 添加页脚
+        System.out.println("[PDF] 开始添加footer...");
         Paragraph footer = new Paragraph("由途点儿啥生成 - " + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")))
                 .setFont(font)
                 .setFontSize(10)
@@ -310,6 +321,106 @@ public class ItineraryPdfService {
                 .setFontColor(ColorConstants.GRAY)
                 .setMarginTop(30);
         document.add(footer);
+        System.out.println("[PDF] Footer添加成功");
+        
+        System.out.println("[PDF] Footer添加完成，开始查询任务...");
+        
+        // 添加任务分工信息
+        try {
+            java.util.List<ProjectTask> tasks = taskRepository.findByProjectIdOrderByCreatedTimeDesc(projectId);
+            System.out.println("[PDF] 查询到任务数量: " + tasks.size());
+        if (!tasks.isEmpty()) {
+            // 添加分页符
+            document.add(new com.itextpdf.layout.element.AreaBreak());
+            
+            Paragraph taskTitle = new Paragraph("任务分工")
+                    .setFont(font)
+                    .setFontSize(20)
+                    .setBold()
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setFontColor(new DeviceRgb(139, 92, 246))
+                    .setMarginBottom(20);
+            document.add(taskTitle);
+            
+            Table taskTable = new Table(UnitValue.createPercentArray(new float[]{50, 30, 20}))
+                    .useAllAvailableWidth()
+                    .setMarginBottom(10);
+            
+            // 表头
+            taskTable.addCell(new Cell()
+                    .add(new Paragraph("任务名称").setFont(font).setFontSize(10).setBold())
+                    .setBackgroundColor(new DeviceRgb(139, 92, 246))
+                    .setFontColor(ColorConstants.WHITE)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setPadding(8));
+            taskTable.addCell(new Cell()
+                    .add(new Paragraph("负责人").setFont(font).setFontSize(10).setBold())
+                    .setBackgroundColor(new DeviceRgb(139, 92, 246))
+                    .setFontColor(ColorConstants.WHITE)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setPadding(8));
+            taskTable.addCell(new Cell()
+                    .add(new Paragraph("状态").setFont(font).setFontSize(10).setBold())
+                    .setBackgroundColor(new DeviceRgb(139, 92, 246))
+                    .setFontColor(ColorConstants.WHITE)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setPadding(8));
+            
+            // 任务列表
+            for (ProjectTask task : tasks) {
+                System.out.println("[PDF] 添加任务: " + task.getTaskName() + ", 负责人ID: " + task.getAssigneeId());
+                taskTable.addCell(new Cell()
+                        .add(new Paragraph(task.getTaskName()).setFont(font).setFontSize(10))
+                        .setPadding(8));
+                
+                // 获取负责人姓名
+                String assigneeName = "-";
+                try {
+                    User assignee = userRepository.findById(task.getAssigneeId()).orElse(null);
+                    if (assignee != null) {
+                        assigneeName = assignee.getUsername();
+                    }
+                } catch (Exception e) {}
+                
+                taskTable.addCell(new Cell()
+                        .add(new Paragraph(assigneeName).setFont(font).setFontSize(10))
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setPadding(8));
+                
+                // 状态
+                String statusText;
+                DeviceRgb statusColor;
+                switch (task.getStatus()) {
+                    case "PENDING":
+                        statusText = "待处理";
+                        statusColor = new DeviceRgb(156, 163, 175);
+                        break;
+                    case "IN_PROGRESS":
+                        statusText = "进行中";
+                        statusColor = new DeviceRgb(59, 130, 246);
+                        break;
+                    case "COMPLETED":
+                        statusText = "已完成";
+                        statusColor = new DeviceRgb(16, 185, 129);
+                        break;
+                    default:
+                        statusText = task.getStatus();
+                        statusColor = new DeviceRgb(0, 0, 0);
+                }
+                
+                taskTable.addCell(new Cell()
+                        .add(new Paragraph(statusText).setFont(font).setFontSize(10).setBold())
+                        .setFontColor(statusColor)
+                        .setTextAlignment(TextAlignment.CENTER)
+                        .setPadding(8));
+            }
+            
+            document.add(taskTable);
+        }
+        } catch (Exception e) {
+            System.out.println("[PDF] 任务分工添加失败: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         document.close();
         return baos.toByteArray();

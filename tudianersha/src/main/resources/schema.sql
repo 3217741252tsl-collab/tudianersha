@@ -121,3 +121,18 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     INDEX idx_project_id (project_id),
     INDEX idx_created_time (created_time)
 );
+
+-- 项目任务表
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT NOT NULL,
+    task_name VARCHAR(200) NOT NULL,
+    assignee_id BIGINT NOT NULL,
+    created_by BIGINT NOT NULL,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    image_urls TEXT,
+    created_time DATETIME NOT NULL,
+    updated_time DATETIME NOT NULL,
+    INDEX idx_project_id (project_id),
+    INDEX idx_assignee_id (assignee_id)
+);

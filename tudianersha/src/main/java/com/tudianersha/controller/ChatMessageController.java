@@ -36,6 +36,26 @@ public class ChatMessageController {
         return new ResponseEntity<>(savedMessage, HttpStatus.CREATED);
     }
     
+    @GetMapping("/{id}")
+    public ResponseEntity<ChatMessage> getMessageById(@PathVariable Long id) {
+        ChatMessage message = chatMessageService.getMessageById(id);
+        if (message != null) {
+            return new ResponseEntity<>(message, HttpStatus.OK);
+        }
+        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<ChatMessage> updateMessage(@PathVariable Long id, @RequestBody ChatMessage messageDetails) {
+        ChatMessage existingMessage = chatMessageService.getMessageById(id);
+        if (existingMessage == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        existingMessage.setMessage(messageDetails.getMessage());
+        ChatMessage updated = chatMessageService.saveMessage(existingMessage);
+        return new ResponseEntity<>(updated, HttpStatus.OK);
+    }
+    
     @DeleteMapping("/{id}")
     public ResponseEntity<HttpStatus> deleteMessage(@PathVariable Long id) {
         chatMessageService.deleteMessage(id);

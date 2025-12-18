@@ -7,6 +7,13 @@
   <!-- Version: 2024-12-17-v24-nearby-poi-location -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <!-- 高德地图JS API -->
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: '07ec5b4c0314b96e44928e25dede60f7'
+    }
+  </script>
+  <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=bf0e97cd7a4c3c6aaa8ecf3dd7485381&plugin=AMap.Driving,AMap.Walking,AMap.Transfer,AMap.Polyline"></script>
   <style>
     .timeline-item { position: relative; padding-left: 30px; }
     .timeline-item::before { content: ''; position: absolute; left: 8px; top: 30px; width: 2px; height: calc(100% - 20px); background: #e5e7eb; }
@@ -145,10 +152,24 @@
         </div>
         
         <!-- 景点列表 -->
-        <div class="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto" id="attractionsList">
+        <div class="space-y-2 max-h-[calc(100vh-450px)] overflow-y-auto" id="attractionsList">
           <div class="text-center text-gray-400 py-8">
             <iconify-icon icon="mdi:map-search" width="48"></iconify-icon>
             <p class="mt-2 text-sm">加载中...</p>
+          </div>
+        </div>
+        
+        <!-- 路线地图 -->
+        <div class="mt-4 border-t pt-4">
+          <h4 class="font-bold text-sm flex items-center gap-2 mb-2">
+            <iconify-icon icon="mdi:map" class="text-green-500"></iconify-icon>
+            路线地图
+          </h4>
+          <div id="routeMapContainer" class="w-full h-64 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+            <div class="text-center text-gray-400">
+              <iconify-icon icon="mdi:map-outline" width="32"></iconify-icon>
+              <p class="text-xs mt-1">加载地图中...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -206,6 +227,26 @@
             <div class="mt-2 text-center">
               <div id="budgetWarning" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium">
                 <!-- 预算超支或剩余提示 -->
+              </div>
+            </div>
+          </div>
+          
+          <!-- 任务分工区域 -->
+          <div id="taskSection" class="mt-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <iconify-icon icon="mdi:clipboard-check-outline" class="text-purple-600" width="20"></iconify-icon>
+                <h4 class="font-bold text-gray-800 text-sm">任务分工</h4>
+              </div>
+              <button id="addTaskBtn" onclick="openAddTaskModal()" class="hidden px-3 py-1 bg-purple-500 text-white text-xs rounded-lg hover:bg-purple-600 flex items-center gap-1">
+                <iconify-icon icon="mdi:plus" width="14"></iconify-icon>
+                <span>新建任务</span>
+              </button>
+            </div>
+            <div id="taskList" class="space-y-2">
+              <div class="text-center text-gray-400 text-sm py-4">
+                <iconify-icon icon="mdi:clipboard-text-outline" width="32" class="mb-2"></iconify-icon>
+                <p>暂无任务</p>
               </div>
             </div>
           </div>
@@ -301,12 +342,64 @@
         <div class="mention-dropdown" id="mentionDropdown">
           <!-- @mention suggestions -->
         </div>
+        <!-- 引用预览区 -->
+        <div id="replyPreview" class="hidden mb-2 p-2 bg-gray-100 rounded-lg border-l-4 border-blue-500">
+          <div class="flex justify-between items-start">
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-blue-600 font-bold" id="replyToUser"></div>
+              <div class="text-sm text-gray-600 truncate" id="replyToContent"></div>
+            </div>
+            <button onclick="cancelReply()" class="text-gray-400 hover:text-gray-600 ml-2">
+              <iconify-icon icon="mdi:close" width="16"></iconify-icon>
+            </button>
+          </div>
+        </div>
         <div class="flex gap-2">
           <input type="text" id="chatInput" placeholder="输入消息... (输入@提及其他用户)" class="flex-1 border rounded-lg px-4 py-2 text-sm" />
+          <button onclick="openVoteModal()" class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600" title="发起投票">
+            <iconify-icon icon="mdi:poll"></iconify-icon>
+          </button>
           <button onclick="sendMessage()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
             <iconify-icon icon="mdi:send"></iconify-icon>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 投票弹窗 -->
+  <div id="voteModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-orange-500 to-yellow-500 px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <iconify-icon icon="mdi:poll" width="24"></iconify-icon>
+          发起投票
+        </h2>
+        <button onclick="closeVoteModal()" class="text-white hover:text-gray-200">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      <div class="p-6">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">投票标题 <span class="text-red-500">*</span></label>
+            <input type="text" id="voteTitle" placeholder="例如：明天去哪个景点？" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">投票选项 <span class="text-red-500">*</span></label>
+            <div id="voteOptions" class="space-y-2">
+              <input type="text" class="vote-option w-full border rounded-lg px-3 py-2" placeholder="选项1">
+              <input type="text" class="vote-option w-full border rounded-lg px-3 py-2" placeholder="选项2">
+            </div>
+            <button onclick="addVoteOption()" class="mt-2 text-sm text-orange-500 hover:text-orange-600 flex items-center gap-1">
+              <iconify-icon icon="mdi:plus"></iconify-icon>添加选项
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+        <button onclick="closeVoteModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+        <button onclick="createVote()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">发起投票</button>
       </div>
     </div>
   </div>
@@ -421,6 +514,7 @@
     // 全局变量
     let canEdit = false; // 当前用户是否有编辑权限（创建者或编辑者）
         let isProjectCreator = false; // 当前用户是否是创建者
+        let isCreator = false; // 全局isCreator用于任务分工
         let projectStatus = '协作中'; // 项目状态
     let currentRouteData = null; // 当前路线数据
     let currentProjectInfo = null; // 当前项目信息缓存
@@ -431,6 +525,11 @@
     let autoRefreshInterval = null; // 自动刷新定时器
     let projectRequirements = []; // 所有用户的需求参数
     let activityBudgets = {}; // 每个活动的预算 { 'day-index': budget }
+    
+    // 地图相关变量
+    let routeMap = null; // 高德地图实例
+    let routeMarkers = []; // 地图标记点
+    let routePolylines = []; // 路线折线
     let dailyBudgetPlan = 0; // 创建者设定的每日预算
     let isEditingBudget = false; // 标记用户是否正在编辑预算
     
@@ -469,8 +568,9 @@
           }
           
           // 检查当前用户是否为创建者
-          const isCreator = project.creatorId === currentUser.id;
-          isProjectCreator = isCreator; // 设置全局变量
+          const creatorCheck = project.creatorId === currentUser.id;
+          isProjectCreator = creatorCheck; // 设置全局变量
+          isCreator = creatorCheck; // 同步设置 isCreator
           
           // 获取项目状态并更新显示
           projectStatus = project.status || '协作中';
@@ -910,6 +1010,250 @@
       }).join('');
     }
     
+    // ========== 路线地图功能 ==========
+    // 初始化地图
+    function initRouteMap() {
+      if (routeMap) return; // 已初始化
+      try {
+        routeMap = new AMap.Map('routeMapContainer', {
+          zoom: 12,
+          viewMode: '2D'
+        });
+        console.log('[RouteMap] 地图初始化成功');
+      } catch (e) {
+        console.error('[RouteMap] 地图初始化失败:', e);
+      }
+    }
+    
+    // 清除地图上的路线和标记
+    function clearRouteMap() {
+      if (!routeMap) return;
+      routeMarkers.forEach(m => routeMap.remove(m));
+      routePolylines.forEach(p => routeMap.remove(p));
+      routeMarkers = [];
+      routePolylines = [];
+    }
+    
+    // 根据当天行程更新地图路线
+    async function updateRouteMap(activities) {
+      if (!routeMap) {
+        initRouteMap();
+        await new Promise(r => setTimeout(r, 500));
+      }
+      clearRouteMap();
+      
+      if (!activities || activities.length === 0) {
+        routeMap.setCenter([113.746262, 23.046237]);
+        return;
+      }
+      
+      const points = [];
+      let transports = [];
+      
+      // 获取交通信息
+      try {
+        const dailyData = JSON.parse(currentRouteData.dailyItinerary);
+        const selectedDay = parseInt(document.getElementById('daySelector').value) || 1;
+        const dayData = dailyData.find(d => (d.day || dailyData.indexOf(d) + 1) === selectedDay);
+        if (dayData && dayData.transports) {
+          transports = dayData.transports;
+          // 添加出发地
+          const depTransport = transports.find(t => t.isDeparture || t.fromIndex === -1);
+          if (depTransport && depTransport.fromLocation) {
+            const loc = depTransport.fromLocation.split(',');
+            if (loc.length === 2) {
+              points.push({
+                name: depTransport.fromName || '出发地',
+                lng: parseFloat(loc[0]),
+                lat: parseFloat(loc[1]),
+                isDeparture: true
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.log('[RouteMap] 获取交通信息失败:', e);
+      }
+      
+      // 提取景点位置
+      activities.forEach((act, idx) => {
+        if (act.poiInfo && act.poiInfo.location) {
+          const loc = act.poiInfo.location.split(',');
+          if (loc.length === 2) {
+            points.push({
+              name: act.poiInfo.name || act.name || '景点',
+              lng: parseFloat(loc[0]),
+              lat: parseFloat(loc[1]),
+              index: idx
+            });
+          }
+        }
+      });
+      
+      if (points.length === 0) return;
+      
+      // 添加标记点
+      points.forEach((pt, i) => {
+        const bgColor = pt.isDeparture ? '#9333ea' : '#8b5cf6';
+        const marker = new AMap.Marker({
+          position: [pt.lng, pt.lat],
+          title: pt.name,
+          label: {
+            content: `<div style="background:${bgColor};color:white;padding:2px 6px;border-radius:10px;font-size:12px;white-space:nowrap;">${i + 1}. ${pt.name}</div>`,
+            direction: 'top'
+          }
+        });
+        routeMap.add(marker);
+        routeMarkers.push(marker);
+      });
+      
+      // 初始调整视野（只在开始时调整一次）
+      routeMap.setFitView(routeMarkers, false, [50, 50, 50, 50]);
+      
+      // 根据交通卡信息绘制实际路线（使用高德路径规划）
+      for (let i = 0; i < points.length - 1; i++) {
+        const from = points[i];
+        const to = points[i + 1];
+        
+        // 查找对应的交通信息
+        let transport = null;
+        if (from.isDeparture) {
+          transport = transports.find(t => t.isDeparture || t.fromIndex === -1);
+        } else {
+          transport = transports.find(t => {
+            if (t.isDeparture) return false;
+            const cleanFrom = (t.fromName || '').replace(/[\s\-]/g, '');
+            const cleanPt = from.name.replace(/[\s\-]/g, '');
+            return cleanFrom.includes(cleanPt) || cleanPt.includes(cleanFrom) || t.fromIndex === from.index;
+          });
+        }
+        
+        // 使用高德路径规划绘制真实路线
+        drawRealRoute(from, to, transport);
+      }
+      
+      console.log('[RouteMap] 路线更新完成, 点数:', points.length);
+    }
+    
+    // 使用高德路径规划绘制真实路线
+    function drawRealRoute(from, to, transport) {
+      // 确定交通方式
+      let mode = 'transit'; // 默认公交
+      if (transport && transport.steps) {
+        const hasSubway = transport.steps.some(s => s.type === 'subway');
+        if (hasSubway) mode = 'transit';
+      } else if (transport && transport.method) {
+        if (transport.method.includes('步行')) mode = 'walking';
+        else if (transport.method.includes('驾车') || transport.method.includes('打车')) mode = 'driving';
+      }
+      
+      const origin = new AMap.LngLat(from.lng, from.lat);
+      const destination = new AMap.LngLat(to.lng, to.lat);
+      
+      if (mode === 'transit') {
+        // 公交/地铁路线
+        const transfer = new AMap.Transfer({
+          map: routeMap,
+          city: destinationCity || '东莞',
+          policy: AMap.TransferPolicy.LEAST_TIME,
+          hideMarkers: true,
+          isOutline: false
+        });
+        transfer.search(origin, destination, function(status, result) {
+          if (status === 'complete' && result.plans && result.plans.length > 0) {
+            // 获取第一个方案的路径
+            const plan = result.plans[0];
+            const path = [];
+            plan.segments.forEach(seg => {
+              if (seg.transit && seg.transit.path) {
+                path.push(...seg.transit.path);
+              } else if (seg.walking && seg.walking.path) {
+                path.push(...seg.walking.path);
+              }
+            });
+            if (path.length > 0) {
+              // 确定颜色
+              let color = '#22c55e'; // 默认绿色公交
+              const hasSubway = plan.segments.some(s => s.transit && s.transit.classextension && s.transit.classextension.includes('地铁'));
+              if (hasSubway) color = '#3b82f6'; // 蓝色地铁
+              
+              const polyline = new AMap.Polyline({
+                path: path,
+                strokeColor: color,
+                strokeWeight: 6,
+                strokeOpacity: 0.8,
+                lineJoin: 'round'
+              });
+              routeMap.add(polyline);
+              routePolylines.push(polyline);
+            }
+          } else {
+            // 回退到直线
+            drawFallbackLine(from, to, '#8b5cf6');
+          }
+        });
+        transfer.clear(); // 清除默认渲染
+      } else if (mode === 'walking') {
+        // 步行路线
+        const walking = new AMap.Walking({
+          map: routeMap,
+          hideMarkers: true
+        });
+        walking.search(origin, destination, function(status, result) {
+          if (status === 'complete' && result.routes && result.routes.length > 0) {
+            const path = result.routes[0].steps.reduce((arr, step) => arr.concat(step.path), []);
+            const polyline = new AMap.Polyline({
+              path: path,
+              strokeColor: '#f59e0b',
+              strokeWeight: 5,
+              strokeOpacity: 0.8,
+              strokeStyle: 'dashed'
+            });
+            routeMap.add(polyline);
+            routePolylines.push(polyline);
+          } else {
+            drawFallbackLine(from, to, '#f59e0b');
+          }
+        });
+        walking.clear();
+      } else {
+        // 驾车路线
+        const driving = new AMap.Driving({
+          map: routeMap,
+          hideMarkers: true
+        });
+        driving.search(origin, destination, function(status, result) {
+          if (status === 'complete' && result.routes && result.routes.length > 0) {
+            const path = result.routes[0].steps.reduce((arr, step) => arr.concat(step.path), []);
+            const polyline = new AMap.Polyline({
+              path: path,
+              strokeColor: '#9333ea',
+              strokeWeight: 5,
+              strokeOpacity: 0.8
+            });
+            routeMap.add(polyline);
+            routePolylines.push(polyline);
+          } else {
+            drawFallbackLine(from, to, '#9333ea');
+          }
+        });
+        driving.clear();
+      }
+    }
+    
+    // 回退直线
+    function drawFallbackLine(from, to, color) {
+      const polyline = new AMap.Polyline({
+        path: [[from.lng, from.lat], [to.lng, to.lat]],
+        strokeColor: color,
+        strokeWeight: 4,
+        strokeOpacity: 0.6,
+        strokeStyle: 'dashed'
+      });
+      routeMap.add(polyline);
+      routePolylines.push(polyline);
+    }
+    
     // 渲染路线总览（横向4列网格，带交通信息）
     function renderDayOverview(activities, selectedDay) {
       console.log('[renderDayOverview] 调用，activities:', activities, 'selectedDay:', selectedDay);
@@ -1153,6 +1497,9 @@
       
       // 更新预算统计
       updateBudgetSummary(selectedDay);
+      
+      // 更新路线地图
+      updateRouteMap(activities);
       
       console.log('[renderDayOverview] 渲染完成');
       
@@ -1919,6 +2266,11 @@
                 <option value="编辑者" ${currentRole === '编辑者' ? 'selected' : ''}>📝 编辑者</option>
                 <option value="查看者" ${currentRole === '查看者' || currentRole === '参与者' ? 'selected' : ''}>👁️ 查看者</option>
               </select>
+              <button onclick="kickParticipant(${p.id}, '${username}')" 
+                      class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm flex items-center gap-1" title="踢出项目">
+                <iconify-icon icon="mdi:account-remove"></iconify-icon>
+                <span>踢出</span>
+              </button>
             </div>
           </div>
         `;
@@ -1967,7 +2319,7 @@
         // 重新检查当前用户的编辑权限（如果不是创建者）
         const projectResult = await fetch(`/api/travel-projects/${projectId}`).then(r => r.json());
         const project = projectResult.success && projectResult.data ? projectResult.data : projectResult;
-        const isCreator = project.creatorId === currentUser.id;
+        isCreator = project.creatorId === currentUser.id;
         
         if (!isCreator) {
           // 重置 canEdit 标志
@@ -2002,6 +2354,31 @@
       } catch (error) {
         console.error('Error saving permissions:', error);
         alert('❌ 权限修改失败，请重试');
+      }
+    }
+    
+    // 踢出参与者
+    async function kickParticipant(participantId, username) {
+      if (!confirm(`确定要将「${username}」踢出项目吗？\n\n该用户将无法再访问此项目。`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/project-participants/${participantId}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          alert(`✅ 已将「${username}」踢出项目`);
+          // 重新加载参与者列表
+          await loadProjectParticipants();
+          renderParticipantList();
+        } else {
+          throw new Error('删除失败');
+        }
+      } catch (error) {
+        console.error('Error kicking participant:', error);
+        alert('❌ 操作失败，请重试');
       }
     }
     
@@ -2047,6 +2424,13 @@
         addActivityBtn.style.display = 'none';
       }
       
+      // 隐藏任务添加按钮
+      const addTaskBtn = document.getElementById('addTaskBtn');
+      if (addTaskBtn) {
+        addTaskBtn.classList.add('hidden');
+        addTaskBtn.style.display = 'none';
+      }
+      
       // 隐藏所有编辑/删除按钮
       document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => {
         btn.style.display = 'none';
@@ -2056,6 +2440,21 @@
       document.querySelectorAll('.budget-input').forEach(input => {
         input.disabled = true;
       });
+      
+      // 隐藏聊天输入框
+      const chatInputContainer = document.querySelector('.bg-white.border-t.p-4');
+      if (chatInputContainer) {
+        chatInputContainer.style.display = 'none';
+      }
+      
+      // 显示聊天已关闭提示
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages && chatMessages.parentElement) {
+        const notice = document.createElement('div');
+        notice.className = 'bg-gray-100 text-gray-500 text-center py-3 text-sm';
+        notice.textContent = '项目已归档，聊天功能已关闭';
+        chatMessages.parentElement.appendChild(notice);
+      }
     }
     
     // 处理状态点击
@@ -2098,8 +2497,10 @@
         if (response.ok) {
           projectStatus = '已归档';
           updateStatusBadge();
+          // 停止自动刷新
+          stopAutoRefresh();
           alert('✅ 项目已成功归档');
-          // 重新加载页面以确保所有UI更新
+          // 刷新页面以更新所有UI
           location.reload();
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -2159,31 +2560,150 @@
         console.error('Error polling new messages:', error);
       }
     }
+    
+    // 检查用户是否被踢出项目
+    async function checkKickedStatus() {
+      if (!projectId || !currentUser) return;
+      try {
+        const response = await fetch(`/api/project-participants/project/${projectId}`);
+        if (response.ok) {
+          const participants = await response.json();
+          const isStillParticipant = participants.some(p => p.userId === currentUser.id);
+          
+          const projectRes = await fetch(`/api/travel-projects/${projectId}`);
+          if (projectRes.ok) {
+            const projectData = await projectRes.json();
+            const project = projectData.data || projectData;
+            isCreator = project.creatorId === currentUser.id;
+            
+            if (!isCreator && !isStillParticipant) {
+              alert('🚫 您已被项目创建者移出该项目\n\n点击确定返回主页');
+              window.location.href = '/index.html';
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking kicked status:', error);
+      }
+    }
 
     function renderChat(messages) {
       const container = document.getElementById('chatMessages');
+      // 缓存消息用于引用查找
+      window.chatMessagesCache = messages;
+      
       container.innerHTML = messages.map(msg => {
         const isCurrentUser = msg.userId === currentUser.id;
         const timeAgo = formatTimeAgo(msg.createdTime);
+        
+        // 检查是否是投票消息
+        if (msg.message.startsWith('[VOTE]')) {
+          return renderVoteMessage(msg, timeAgo);
+        }
+        
+        // 解析引用消息
+        let replyHtml = '';
+        let displayMessage = msg.message;
+        if (msg.message.startsWith('[REPLY:')) {
+          const endIdx = msg.message.indexOf(']');
+          if (endIdx > 0) {
+            const replyId = parseInt(msg.message.substring(7, endIdx));
+            displayMessage = msg.message.substring(endIdx + 1);
+            const replyMsg = messages.find(m => m.id === replyId);
+            if (replyMsg) {
+              const replyContent = replyMsg.message.startsWith('[REPLY:') 
+                ? replyMsg.message.substring(replyMsg.message.indexOf(']') + 1)
+                : replyMsg.message;
+              // 只显示前6个字
+              const previewText = replyContent.substring(0, 6) + (replyContent.length > 6 ? '...' : '');
+              replyHtml = `
+                <div class="text-xs px-2 py-1 mb-2 rounded bg-black bg-opacity-10 border-l-2 ${isCurrentUser ? 'border-blue-300' : 'border-gray-400'}">
+                  <div class="flex items-center gap-1">
+                    <iconify-icon icon="mdi:reply" width="12" class="opacity-60"></iconify-icon>
+                    <span class="opacity-80">${previewText}</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+        
         // 检查是否被@（别人的消息且@了当前用户）
-        const isMentioned = !isCurrentUser && checkMention(msg.message);
-        // 被@时使用蓝色高亮背景
+        const isMentioned = !isCurrentUser && checkMention(displayMessage);
         let bgClass = isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border';
         if (isMentioned) {
           bgClass = 'bg-blue-100 border-2 border-blue-400';
         }
+        
         return `
-          <div class="${isCurrentUser ? 'flex justify-end' : ''}">
-            <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''}">
+          <div class="${isCurrentUser ? 'flex justify-end' : ''} group">
+            <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''} relative">
+              ${replyHtml}
               <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
-              <div class="text-sm break-words">${msg.message}</div>
-              <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
+              <div class="text-sm break-words">${displayMessage}</div>
+              <div class="flex justify-between items-center mt-1">
+                <span class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'}">${timeAgo}</span>
+                <button onclick="setReply(${msg.id}, '${msg.username.replace(/'/g, "\\'")}', '${displayMessage.replace(/'/g, "\\'")}')" 
+                        class="opacity-0 group-hover:opacity-100 text-xs ${isCurrentUser ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-blue-500'} transition-opacity ml-2"
+                        title="回复">
+                  <iconify-icon icon="mdi:reply" width="14"></iconify-icon>
+                </button>
+              </div>
             </div>
           </div>
         `;
       }).join('');
-      // 自动滚动到底部
       container.scrollTop = container.scrollHeight;
+    }
+    
+    // 渲染投票消息
+    function renderVoteMessage(msg, timeAgo) {
+      try {
+        const voteData = JSON.parse(msg.message.substring(6));
+        const totalVotes = voteData.options.reduce((sum, opt) => sum + opt.votes.length, 0);
+        
+        const optionsHtml = voteData.options.map(opt => {
+          const voteCount = opt.votes.length;
+          const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+          const hasVoted = opt.votes.includes(currentUser.id);
+          
+          return `
+            <div class="mb-2">
+              <button onclick="castVote(${msg.id}, ${voteData.id}, ${opt.id})" 
+                      class="w-full text-left px-3 py-2 rounded-lg border ${hasVoted ? 'bg-orange-100 border-orange-400' : 'bg-gray-50 hover:bg-gray-100'} transition-colors">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm ${hasVoted ? 'font-bold text-orange-600' : ''}">${opt.text}</span>
+                  <span class="text-xs text-gray-500">${voteCount}票 (${percentage}%)</span>
+                </div>
+                <div class="mt-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full ${hasVoted ? 'bg-orange-500' : 'bg-blue-400'}" style="width: ${percentage}%"></div>
+                </div>
+              </button>
+            </div>
+          `;
+        }).join('');
+        
+        return `
+          <div class="w-full">
+            <div class="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 p-4 rounded-lg shadow-sm">
+              <div class="flex items-center gap-2 mb-3">
+                <iconify-icon icon="mdi:poll" class="text-orange-500" width="20"></iconify-icon>
+                <span class="font-bold text-orange-600">投票</span>
+                <span class="text-xs text-gray-500">by ${voteData.createdByName}</span>
+              </div>
+              <div class="font-semibold text-gray-800 mb-3">${voteData.title}</div>
+              ${optionsHtml}
+              <div class="text-xs text-gray-400 mt-2 flex justify-between">
+                <span>共${totalVotes}人参与投票</span>
+                <span>${timeAgo}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        console.error('Error rendering vote:', e);
+        return '';
+      }
     }
     
     // @提醒声音
@@ -2208,24 +2728,62 @@
       const container = document.getElementById('chatMessages');
       let hasMention = false;
       
+      // 更新缓存
+      if (!window.chatMessagesCache) window.chatMessagesCache = [];
+      window.chatMessagesCache = [...window.chatMessagesCache, ...messages];
+      
       messages.forEach(msg => {
         const isCurrentUser = msg.userId === currentUser.id;
         const timeAgo = formatTimeAgo(msg.createdTime);
-        // 检查是否被@
-        const isMentioned = !isCurrentUser && checkMention(msg.message);
-        // 被@时使用蓝色高亮背景
+        
+        // 解析引用消息
+        let replyHtml = '';
+        let displayMessage = msg.message;
+        if (msg.message.startsWith('[REPLY:')) {
+          const endIdx = msg.message.indexOf(']');
+          if (endIdx > 0) {
+            const replyId = parseInt(msg.message.substring(7, endIdx));
+            displayMessage = msg.message.substring(endIdx + 1);
+            const replyMsg = window.chatMessagesCache.find(m => m.id === replyId);
+            if (replyMsg) {
+              const replyContent = replyMsg.message.startsWith('[REPLY:') 
+                ? replyMsg.message.substring(replyMsg.message.indexOf(']') + 1)
+                : replyMsg.message;
+              const previewText = replyContent.substring(0, 6) + (replyContent.length > 6 ? '...' : '');
+              replyHtml = `
+                <div class="text-xs px-2 py-1 mb-2 rounded bg-black bg-opacity-10 border-l-2 ${isCurrentUser ? 'border-blue-300' : 'border-gray-400'}">
+                  <div class="flex items-center gap-1">
+                    <iconify-icon icon="mdi:reply" width="12" class="opacity-60"></iconify-icon>
+                    <span class="opacity-80">${previewText}</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+        
+        const isMentioned = !isCurrentUser && checkMention(displayMessage);
         let bgClass = isCurrentUser ? 'bg-blue-500 text-white' : 'bg-white border';
         if (isMentioned) {
           bgClass = 'bg-blue-100 border-2 border-blue-400';
           hasMention = true;
         }
+        
         const messageEl = document.createElement('div');
-        messageEl.className = isCurrentUser ? 'flex justify-end' : '';
+        messageEl.className = `${isCurrentUser ? 'flex justify-end' : ''} group`;
         messageEl.innerHTML = `
-          <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''}">
+          <div class="${bgClass} p-3 rounded-lg max-w-[80%] shadow-sm ${isMentioned ? 'ring-2 ring-blue-300' : ''} relative">
+            ${replyHtml}
             <div class="text-xs font-bold ${isCurrentUser ? 'text-blue-100' : 'text-blue-600'} mb-1">${msg.username}</div>
-            <div class="text-sm break-words">${msg.message}</div>
-            <div class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'} mt-1">${timeAgo}</div>
+            <div class="text-sm break-words">${displayMessage}</div>
+            <div class="flex justify-between items-center mt-1">
+              <span class="text-xs ${isCurrentUser ? 'text-blue-100' : 'text-gray-400'}">${timeAgo}</span>
+              <button onclick="setReply(${msg.id}, '${msg.username.replace(/'/g, "\\'")}', '${displayMessage.replace(/'/g, "\\'")}')" 
+                      class="opacity-0 group-hover:opacity-100 text-xs ${isCurrentUser ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-blue-500'} transition-opacity ml-2"
+                      title="回复">
+                <iconify-icon icon="mdi:reply" width="14"></iconify-icon>
+              </button>
+            </div>
           </div>
         `;
         container.appendChild(messageEl);
@@ -2312,12 +2870,39 @@
       hideMentionDropdown();
       input.focus();
     }
+    
+    // 引用回复功能
+    window.replyToMessageId = null;
+    
+    window.setReply = function(msgId, username, content) {
+      window.replyToMessageId = msgId;
+      document.getElementById('replyPreview').classList.remove('hidden');
+      document.getElementById('replyToUser').textContent = username;
+      document.getElementById('replyToContent').textContent = content.substring(0, 100) + (content.length > 100 ? '...' : '');
+      document.getElementById('chatInput').focus();
+    }
+    
+    window.cancelReply = function() {
+      window.replyToMessageId = null;
+      document.getElementById('replyPreview').classList.add('hidden');
+    }
 
     async function sendMessage() {
+      // 归档后不允许发送消息
+      if (projectStatus === '已归档') {
+        alert('项目已归档，聊天功能已关闭');
+        return;
+      }
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
       if (text) {
         try {
+          // 检查是否有引用
+          let finalMessage = text;
+          if (window.replyToMessageId) {
+            finalMessage = `[REPLY:${window.replyToMessageId}]${text}`;
+          }
+          
           // 保存消息到数据库
           const response = await fetch('/api/chat-messages', {
             method: 'POST',
@@ -2328,7 +2913,7 @@
               projectId: projectId,
               userId: currentUser.id,
               username: currentUser.username,
-              message: text,
+              message: finalMessage,
               createdTime: new Date().toISOString()
             })
           });
@@ -2340,11 +2925,122 @@
             lastMessageId = savedMessage.id;
             input.value = '';
             hideMentionDropdown();
+            cancelReply(); // 清除引用
           }
         } catch (error) {
           console.error('Error sending message:', error);
           alert('发送消息失败');
         }
+      }
+    }
+
+    // 投票功能
+    let projectVotes = []; // 存储投票数据
+    
+    window.openVoteModal = function() {
+      document.getElementById('voteModal').classList.remove('hidden');
+      document.getElementById('voteTitle').value = '';
+      document.getElementById('voteOptions').innerHTML = `
+        <input type="text" class="vote-option w-full border rounded-lg px-3 py-2" placeholder="选项1">
+        <input type="text" class="vote-option w-full border rounded-lg px-3 py-2" placeholder="选项2">
+      `;
+    }
+    
+    window.closeVoteModal = function() {
+      document.getElementById('voteModal').classList.add('hidden');
+    }
+    
+    window.addVoteOption = function() {
+      const container = document.getElementById('voteOptions');
+      const count = container.querySelectorAll('.vote-option').length + 1;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'vote-option w-full border rounded-lg px-3 py-2';
+      input.placeholder = `选项${count}`;
+      container.appendChild(input);
+    }
+    
+    window.createVote = async function() {
+      const title = document.getElementById('voteTitle').value.trim();
+      const optionInputs = document.querySelectorAll('.vote-option');
+      const options = Array.from(optionInputs).map(i => i.value.trim()).filter(v => v);
+      
+      if (!title) { alert('请输入投票标题'); return; }
+      if (options.length < 2) { alert('至少需要2个选项'); return; }
+      
+      // 通过聊天消息发送投票（使用特殊格式）
+      const voteData = {
+        type: 'vote',
+        id: Date.now(),
+        title: title,
+        options: options.map((opt, idx) => ({ id: idx, text: opt, votes: [] })),
+        createdBy: currentUser.id,
+        createdByName: currentUser.username
+      };
+      
+      try {
+        const response = await fetch('/api/chat-messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: projectId,
+            userId: currentUser.id,
+            username: currentUser.username,
+            message: `[VOTE]${JSON.stringify(voteData)}`,
+            createdTime: new Date().toISOString()
+          })
+        });
+        
+        if (response.ok) {
+          closeVoteModal();
+          await loadChatMessages();
+        }
+      } catch (error) {
+        console.error('Error creating vote:', error);
+        alert('发起投票失败');
+      }
+    }
+    
+    window.castVote = async function(messageId, voteId, optionId) {
+      try {
+        // 获取原消息
+        const response = await fetch(`/api/chat-messages/${messageId}`);
+        if (!response.ok) return;
+        
+        const msg = await response.json();
+        if (!msg.message.startsWith('[VOTE]')) return;
+        
+        const voteData = JSON.parse(msg.message.substring(6));
+        
+        // 检查是否已投票，如果已投则取消
+        let hasVoted = false;
+        voteData.options.forEach(opt => {
+          const voteIdx = opt.votes.indexOf(currentUser.id);
+          if (voteIdx > -1) {
+            opt.votes.splice(voteIdx, 1);
+            hasVoted = (opt.id === optionId);
+          }
+        });
+        
+        // 如果不是取消同一选项，则添加新投票
+        if (!hasVoted) {
+          const option = voteData.options.find(o => o.id === optionId);
+          if (option) option.votes.push(currentUser.id);
+        }
+        
+        // 更新消息
+        await fetch(`/api/chat-messages/${messageId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...msg,
+            message: `[VOTE]${JSON.stringify(voteData)}`
+          })
+        });
+        
+        await loadChatMessages();
+      } catch (error) {
+        console.error('Error casting vote:', error);
       }
     }
 
@@ -2428,11 +3124,13 @@
         return;
       }
           
+      // 获取按钮元素
+      const btn = event && event.target ? event.target.closest('button') : document.querySelector('[onclick*="exportPdf"]');
+          
       try {
         console.log('[PDF Export] 开始下载PDF...');
             
         // 显示加载状态
-        const btn = event && event.target ? event.target.closest('button') : document.querySelector('[onclick*="exportPdf"]');
         let originalText = '';
         if (btn) {
           originalText = btn.innerHTML;
@@ -3404,6 +4102,9 @@
         console.log('Step 1: Loading project info...');
         await loadProjectInfo();
         console.log('Step 1: Project info loaded');
+        
+        // 初始化路线地图
+        initRouteMap();
       } catch (error) {
         console.error('Step 1 failed:', error);
       }
@@ -3475,9 +4176,20 @@
         console.error('Step 7 failed:', error);
       }
       
+      try {
+        // 加载任务分工数据
+        console.log('Step 8: Loading project tasks...');
+        await loadProjectTasks();
+        console.log('Step 8: Project tasks loaded');
+      } catch (error) {
+        console.error('Step 8 failed:', error);
+      }
+      
       // 每3秒轮询一次新消息
       console.log('Setting up message polling...');
       setInterval(pollNewMessages, 3000);
+      setInterval(checkKickedStatus, 5000); // 每5秒检查是否被踢出
+      setInterval(pollNewTasks, 5000); // 每5秒检查新任务
       
       // 添加点击外部隐藏景点建议的事件监听
       document.addEventListener('click', function(e) {
@@ -3493,8 +4205,12 @@
       
       console.log('=== Initialization complete ===');
       
-      // 启动自动刷新（每10秒检查一次更新）
-      startAutoRefresh();
+      // 启动自动刷新（仅在项目未归档时）
+      if (projectStatus !== '已归档') {
+        startAutoRefresh();
+      } else {
+        console.log('[AutoRefresh] 项目已归档，不启动自动刷新');
+      }
     }
     
     // 手动刷新
@@ -3559,6 +4275,9 @@
       // 每10秒刷新一次
       autoRefreshInterval = setInterval(async () => {
         try {
+          // 先检查项目状态是否变更
+          await checkProjectStatus();
+          // 再刷新数据
           await refreshData();
         } catch (error) {
           console.error('[AutoRefresh] Error:', error);
@@ -3574,6 +4293,28 @@
         clearInterval(autoRefreshInterval);
         autoRefreshInterval = null;
         console.log('[AutoRefresh] 自动刷新已停止');
+      }
+    }
+    
+    // 检查项目状态是否变更为已归档
+    async function checkProjectStatus() {
+      try {
+        const response = await fetch(`/api/travel-projects/${projectId}`);
+        if (response.ok) {
+          const project = await response.json();
+          // 如果项目状态变为已归档，且当前用户不是刚才执行归档的人
+          if (project.status === '已归档' && projectStatus !== '已归档') {
+            console.log('[Status] 检测到项目已被归档');
+            // 停止自动刷新
+            stopAutoRefresh();
+            // 弹窗通知用户
+            alert('📢 项目已被创建者归档！\n\n系统将刷新页面获取最终版本...');
+            // 刷新页面
+            location.reload();
+          }
+        }
+      } catch (error) {
+        console.error('[Status] 检查项目状态失败:', error);
       }
     }
     
@@ -3838,6 +4579,340 @@
       alert('功能开发中...');
     }
     
+    // ========== 任务分工功能 ==========
+    let projectTasks = [];
+    let lastTaskCount = 0; // 记录上次任务数量
+    let myLastTaskIds = []; // 记录上次我的任务ID
+    let taskPollInitialized = false; // 是否已初始化
+    
+    // 轮询新任务
+    async function pollNewTasks() {
+      if (!projectId || !currentUser) return;
+      try {
+        const response = await fetch(`/api/project-tasks/project/${projectId}`);
+        if (response.ok) {
+          const tasks = await response.json();
+          // 检查是否有新分配给我的任务
+          const myTasks = tasks.filter(t => t.assigneeId === currentUser.id);
+          const myTaskIds = myTasks.map(t => t.id);
+          const newTasksForMe = myTasks.filter(t => !myLastTaskIds.includes(t.id));
+          
+          if (newTasksForMe.length > 0 && taskPollInitialized) {
+            // 有新任务分配给我
+            const taskNames = newTasksForMe.map(t => t.taskName).join('、');
+            showTaskNotification(taskNames);
+          }
+          
+          myLastTaskIds = myTaskIds;
+          taskPollInitialized = true;
+          
+          // 更新任务列表
+          if (JSON.stringify(projectTasks) !== JSON.stringify(tasks)) {
+            projectTasks = tasks;
+            renderTaskList();
+          }
+        }
+      } catch (error) {
+        console.error('Error polling tasks:', error);
+      }
+    }
+    
+    // 显示任务通知
+    function showTaskNotification(taskNames) {
+      alert(`📝 新任务通知\n\n您有新的任务分配：\n${taskNames}`);
+    }
+    
+    async function loadProjectTasks() {
+      try {
+        const response = await fetch(`/api/project-tasks/project/${projectId}`);
+        if (response.ok) {
+          projectTasks = await response.json();
+          // 初始化我的任务ID列表
+          myLastTaskIds = projectTasks.filter(t => t.assigneeId === currentUser.id).map(t => t.id);
+          taskPollInitialized = true;
+          renderTaskList();
+        }
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+      }
+    }
+    
+    function renderTaskList() {
+      const container = document.getElementById('taskList');
+      const addBtn = document.getElementById('addTaskBtn');
+      
+      // 只有创建者可以新建任务
+      if (isCreator) {
+        addBtn.classList.remove('hidden');
+      }
+      
+      if (projectTasks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-gray-400 text-sm py-4">
+            <iconify-icon icon="mdi:clipboard-text-outline" width="32" class="mb-2"></iconify-icon>
+            <p>暂无任务</p>
+          </div>`;
+        return;
+      }
+      
+      container.innerHTML = projectTasks.map(task => {
+        const assigneeName = task.assigneeInfo?.username || `用户${task.assigneeId}`;
+        const isMyTask = task.assigneeId === currentUser.id;
+        const imageCount = task.imageUrls ? task.imageUrls.split(',').length : 0;
+        const statusIcon = task.status === 'COMPLETED' ? 'mdi:checkbox-marked-circle' : 'mdi:checkbox-blank-circle-outline';
+        const statusColor = task.status === 'COMPLETED' ? 'text-green-500' : 'text-gray-400';
+        
+        return `
+          <div class="p-3 border rounded-lg hover:bg-gray-50 transition cursor-pointer" onclick="openTaskDetail(${task.id})">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <iconify-icon icon="${statusIcon}" class="${statusColor}" width="20"></iconify-icon>
+                <span class="font-medium text-sm ${task.status === 'COMPLETED' ? 'line-through text-gray-400' : ''}">${task.taskName}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                ${isMyTask ? '<span class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">我负责</span>' : ''}
+                <span class="text-xs text-gray-500">👤 ${assigneeName}</span>
+                ${imageCount > 0 ? `<span class="text-xs text-gray-400">📷 ${imageCount}</span>` : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    
+    function openAddTaskModal() {
+      // 归档后不允许添加任务
+      if (projectStatus === '已归档') {
+        alert('项目已归档，无法添加任务');
+        return;
+      }
+      const select = document.getElementById('taskAssignee');
+      select.innerHTML = '<option value="">选择成员</option>' + 
+        projectParticipants.map(p => {
+          const name = p.userInfo?.username || `用户${p.userId}`;
+          return `<option value="${p.userId}">${name}</option>`;
+        }).join('');
+      document.getElementById('newTaskName').value = '';
+      document.getElementById('addTaskModal').classList.remove('hidden');
+    }
+    
+    function closeAddTaskModal() {
+      document.getElementById('addTaskModal').classList.add('hidden');
+    }
+    
+    async function createTask() {
+      const taskName = document.getElementById('newTaskName').value.trim();
+      const assigneeId = document.getElementById('taskAssignee').value;
+      if (!taskName) { alert('请输入任务名称'); return; }
+      if (!assigneeId) { alert('请选择负责人'); return; }
+      
+      try {
+        const response = await fetch('/api/project-tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: projectId,
+            taskName: taskName,
+            assigneeId: parseInt(assigneeId),
+            createdBy: currentUser.id
+          })
+        });
+        if (response.ok) {
+          closeAddTaskModal();
+          await loadProjectTasks();
+        }
+      } catch (error) {
+        console.error('Error creating task:', error);
+        alert('创建任务失败');
+      }
+    }
+    
+    function openEditTaskModal(taskId) {
+      // 归档后不允许编辑任务
+      if (projectStatus === '已归档') {
+        alert('项目已归档，无法编辑任务');
+        return;
+      }
+      const task = projectTasks.find(t => t.id === taskId);
+      if (!task) return;
+      document.getElementById('editTaskId').value = taskId;
+      document.getElementById('editTaskName').value = task.taskName;
+      document.getElementById('editTaskModal').classList.remove('hidden');
+    }
+    
+    function closeEditTaskModal() {
+      document.getElementById('editTaskModal').classList.add('hidden');
+    }
+    
+    async function saveTaskEdit() {
+      const taskId = document.getElementById('editTaskId').value;
+      const taskName = document.getElementById('editTaskName').value.trim();
+      if (!taskName) { alert('请输入任务名称'); return; }
+      
+      try {
+        const response = await fetch(`/api/project-tasks/${taskId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskName: taskName })
+        });
+        if (response.ok) {
+          closeEditTaskModal();
+          await loadProjectTasks();
+        }
+      } catch (error) {
+        console.error('Error updating task:', error);
+        alert('保存失败');
+      }
+    }
+    
+    async function deleteTask(taskId) {
+      if (!confirm('确定删除这个任务吗？')) return;
+      try {
+        await fetch(`/api/project-tasks/${taskId}`, { method: 'DELETE' });
+        closeTaskDetailModal();
+        await loadProjectTasks();
+      } catch (error) {
+        console.error('Error deleting task:', error);
+      }
+    }
+    
+    async function openTaskDetail(taskId) {
+      const task = projectTasks.find(t => t.id === taskId);
+      if (!task) return;
+      
+      document.getElementById('detailTaskId').value = taskId;
+      document.getElementById('taskDetailTitle').textContent = task.taskName;
+      
+      const isMyTask = task.assigneeId === currentUser.id;
+      const images = task.imageUrls ? task.imageUrls.split(',') : [];
+      const assigneeName = task.assigneeInfo?.username || `用户${task.assigneeId}`;
+      
+      let html = `
+        <div class="mb-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-sm text-gray-500">负责人：</span>
+              <span class="font-medium">${assigneeName}</span>
+            </div>
+            <div class="flex gap-2">`;
+      
+      if (isCreator) {
+        html += `<button onclick="event.stopPropagation(); openEditTaskModal(${taskId})" class="text-blue-500 text-sm">编辑</button>`;
+        html += `<button onclick="event.stopPropagation(); deleteTask(${taskId})" class="text-red-500 text-sm">删除</button>`;
+      }
+      
+      html += `</div></div></div>`;
+      
+      // 图片展示
+      html += `<div class="mb-4"><h4 class="text-sm font-medium text-gray-700 mb-2">完成截图</h4>`;
+      if (images.length > 0) {
+        html += `<div class="grid grid-cols-3 gap-2">`;
+        images.forEach((url, idx) => {
+          html += `
+            <div class="relative group">
+              <img src="${url}" class="w-full h-24 object-cover rounded cursor-pointer" onclick="event.stopPropagation(); previewImage('${url}')" />
+              ${isMyTask ? `<button onclick="event.stopPropagation(); deleteTaskImage(${taskId}, ${idx})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs opacity-0 group-hover:opacity-100">×</button>` : ''}
+            </div>`;
+        });
+        html += `</div>`;
+      } else {
+        html += `<p class="text-gray-400 text-sm">暂无图片</p>`;
+      }
+      html += `</div>`;
+      
+      // 被指派者可以上传图片和标记完成
+      if (isMyTask) {
+        html += `
+          <div class="border-t pt-4 mt-4">
+            <div class="flex gap-2">
+              <label class="flex-1 flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-50">
+                <iconify-icon icon="mdi:camera-plus" width="20" class="text-gray-400"></iconify-icon>
+                <span class="text-sm text-gray-500">上传图片</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadTaskImage(${taskId}, this)" />
+              </label>
+              <button onclick="toggleTaskStatus(${taskId})" class="px-4 py-2 ${task.status === 'COMPLETED' ? 'bg-gray-500' : 'bg-green-500'} text-white rounded-lg">
+                ${task.status === 'COMPLETED' ? '标记未完成' : '标记完成'}
+              </button>
+            </div>
+          </div>`;
+      }
+      
+      document.getElementById('taskDetailContent').innerHTML = html;
+      document.getElementById('taskDetailModal').classList.remove('hidden');
+    }
+    
+    function closeTaskDetailModal() {
+      document.getElementById('taskDetailModal').classList.add('hidden');
+    }
+    
+    async function uploadTaskImage(taskId, input) {
+      // 归档后不允许上传图片
+      if (projectStatus === '已归档') {
+        alert('项目已归档，无法上传图片');
+        input.value = ''; // 清空文件选择
+        return;
+      }
+      const file = input.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const response = await fetch(`/api/project-tasks/${taskId}/images`, {
+          method: 'POST',
+          body: formData
+        });
+        if (response.ok) {
+          await loadProjectTasks();
+          openTaskDetail(taskId);
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        alert('上传失败');
+      }
+    }
+    
+    async function deleteTaskImage(taskId, index) {
+      if (!confirm('删除这张图片？')) return;
+      try {
+        await fetch(`/api/project-tasks/${taskId}/images/${index}`, { method: 'DELETE' });
+        await loadProjectTasks();
+        openTaskDetail(taskId);
+      } catch (error) {
+        console.error('Error deleting image:', error);
+      }
+    }
+    
+    async function toggleTaskStatus(taskId) {
+      // 归档后不允许更改任务状态
+      if (projectStatus === '已归档') {
+        alert('项目已归档，无法更改任务状态');
+        return;
+      }
+      const task = projectTasks.find(t => t.id === taskId);
+      const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+      try {
+        await fetch(`/api/project-tasks/${taskId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        await loadProjectTasks();
+        openTaskDetail(taskId);
+      } catch (error) {
+        console.error('Error updating status:', error);
+      }
+    }
+    
+    function previewImage(url) {
+      document.getElementById('previewImage').src = url;
+      document.getElementById('imagePreviewModal').classList.remove('hidden');
+    }
+    
+    function closeImagePreview() {
+      document.getElementById('imagePreviewModal').classList.add('hidden');
+    }
+    
     init();
   </script>
   
@@ -3850,49 +4925,140 @@
     </div>
   </div>
   
-  <!-- 手动编辑弹窗 -->
-  <div id="manualEditModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeManualEditModal()">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-gray-800">编辑交通信息</h3>
-        <button onclick="closeManualEditModal()" class="text-gray-400 hover:text-gray-600">
+  <!-- 新建任务弹窗 -->
+  <div id="addTaskModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeAddTaskModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center">
+        <h3 class="text-white font-bold text-lg">新建任务</h3>
+        <button onclick="closeAddTaskModal()" class="text-white hover:text-gray-200">
           <iconify-icon icon="mdi:close" width="24"></iconify-icon>
         </button>
       </div>
-      
-      <form id="manualEditForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">交通方式</label>
-          <select id="transportMethod" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-            <option value="">选择交通方式</option>
-            <option value="地铁">🚇 地铁</option>
-            <option value="公交">🚌 公交</option>
-            <option value="出租车">🚖 出租车</option>
-            <option value="步行">🚶 步行</option>
-            <option value="其他">❓ 其他</option>
+      <div class="p-6">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
+          <input type="text" id="newTaskName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="例如：订酒店、买火车票" />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">指派给</label>
+          <select id="taskAssignee" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+            <option value="">选择成员</option>
           </select>
         </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">预计时长（分钟）</label>
-          <input type="number" id="customDuration" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="输入时长" min="0" />
+        <div class="flex gap-2">
+          <button onclick="closeAddTaskModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
+          <button onclick="createTask()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">创建</button>
         </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">预计费用（元）</label>
-          <input type="number" id="customCost" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="输入费用" min="0" step="0.1" />
-        </div>
-        
-        <div class="flex gap-2 pt-2">
-          <button type="button" onclick="closeManualEditModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-            取消
-          </button>
-          <button type="button" onclick="saveManualEdit()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            保存
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
+  
+  <!-- 编辑任务弹窗 -->
+  <div id="editTaskModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]" onclick="if(event.target === this) closeEditTaskModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center">
+        <h3 class="text-white font-bold text-lg">编辑任务</h3>
+        <button onclick="closeEditTaskModal()" class="text-white hover:text-gray-200">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      <div class="p-6">
+        <input type="hidden" id="editTaskId" />
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
+          <input type="text" id="editTaskName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+        </div>
+        <div class="flex gap-2">
+          <button onclick="closeEditTaskModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
+          <button onclick="saveTaskEdit()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 任务详情/图片弹窗 -->
+  <div id="taskDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onclick="if(event.target === this) closeTaskDetailModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center sticky top-0">
+        <h3 class="text-white font-bold text-lg" id="taskDetailTitle">任务详情</h3>
+        <button onclick="closeTaskDetailModal()" class="text-white hover:text-gray-200">
+          <iconify-icon icon="mdi:close" width="24"></iconify-icon>
+        </button>
+      </div>
+      <div class="p-6">
+        <input type="hidden" id="detailTaskId" />
+        <div id="taskDetailContent"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 图片大图预览弹窗 -->
+  <div id="imagePreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]" onclick="closeImagePreview()">
+    <img id="previewImage" src="" class="max-w-[90vw] max-h-[90vh] object-contain" />
+  </div>
+  
+  <!-- 新建任务弹窗 -->
+  <div id="addTaskModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeAddTaskModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center">
+        <h3 class="text-white font-bold text-lg">新建任务</h3>
+        <button onclick="closeAddTaskModal()" class="text-white hover:text-gray-200"><iconify-icon icon="mdi:close" width="24"></iconify-icon></button>
+      </div>
+      <div class="p-6">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
+          <input type="text" id="newTaskName" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="例如：订酒店、买火车票" />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">指派给</label>
+          <select id="taskAssignee" class="w-full px-3 py-2 border border-gray-300 rounded-lg"><option value="">选择成员</option></select>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="closeAddTaskModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
+          <button onclick="createTask()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">创建</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 编辑任务弹窗 -->
+  <div id="editTaskModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]" onclick="if(event.target === this) closeEditTaskModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center">
+        <h3 class="text-white font-bold text-lg">编辑任务</h3>
+        <button onclick="closeEditTaskModal()" class="text-white hover:text-gray-200"><iconify-icon icon="mdi:close" width="24"></iconify-icon></button>
+      </div>
+      <div class="p-6">
+        <input type="hidden" id="editTaskId" />
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
+          <input type="text" id="editTaskName" class="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+        </div>
+        <div class="flex gap-2">
+          <button onclick="closeEditTaskModal()" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">取消</button>
+          <button onclick="saveTaskEdit()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 任务详情弹窗 -->
+  <div id="taskDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onclick="if(event.target === this) closeTaskDetailModal()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+      <div class="bg-gradient-to-r from-purple-500 to-indigo-500 px-6 py-4 flex justify-between items-center sticky top-0">
+        <h3 class="text-white font-bold text-lg" id="taskDetailTitle">任务详情</h3>
+        <button onclick="closeTaskDetailModal()" class="text-white hover:text-gray-200"><iconify-icon icon="mdi:close" width="24"></iconify-icon></button>
+      </div>
+      <div class="p-6"><input type="hidden" id="detailTaskId" /><div id="taskDetailContent"></div></div>
+    </div>
+  </div>
+  
+  <!-- 图片预览弹窗 -->
+  <div id="imagePreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]" onclick="closeImagePreview()">
+    <img id="previewImage" src="" class="max-w-[90vw] max-h-[90vh] object-contain" />
+  </div>
 </body>
+</html>
+</html>
+</html>
 </html>

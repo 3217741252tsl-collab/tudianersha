@@ -18,6 +18,11 @@ spring:
     init:
       mode: never
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
   # Mail Configuration
   # 请按以下步骤配置:
   # 1. 登录 QQ 邮箱 https://mail.qq.com
