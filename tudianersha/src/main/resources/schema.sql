@@ -136,3 +136,19 @@ CREATE TABLE IF NOT EXISTS project_tasks (
     INDEX idx_project_id (project_id),
     INDEX idx_assignee_id (assignee_id)
 );
+
+-- 项目酒店表
+CREATE TABLE IF NOT EXISTS project_hotels (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT NOT NULL,
+    day_index INT NOT NULL,
+    hotel_name VARCHAR(200) NOT NULL,
+    hotel_address VARCHAR(500),
+    longitude DECIMAL(10,6),
+    latitude DECIMAL(10,6),
+    price_per_night DECIMAL(10,2),
+    created_time DATETIME NOT NULL,
+    updated_time DATETIME NOT NULL,
+    INDEX idx_project_id (project_id),
+    INDEX idx_day_index (day_index)
+);

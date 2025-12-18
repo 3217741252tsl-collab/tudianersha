@@ -315,7 +315,7 @@ public class AmapDirectionService {
                             // 最后一段且没有公交，是走到终点（景点）
                             walkStep.put("purpose", "to_destination");
                             String destDesc = (destinationName != null && !destinationName.isEmpty()) 
-                                ? destinationName : "目标景点";
+                                ? destinationName : "终点";
                             walkStep.put("description", "步行" + formatDistance(walkDistance) + "至 " + destDesc);
                         } else {
                             // 走到公交站
@@ -399,14 +399,14 @@ public class AmapDirectionService {
             }
         }
         
-        // 后处理：如果最后一个步骤是walk，将其目的地改为目标景点
+        // 后处理：如果最后一个步骤是walk，将其目的地改为终点
         if (!steps.isEmpty()) {
             Map<String, Object> lastStep = steps.get(steps.size() - 1);
             if ("walk".equals(lastStep.get("type"))) {
                 lastStep.put("purpose", "to_destination");
                 String distanceText = (String) lastStep.get("distanceText");
                 String destDesc = (destinationName != null && !destinationName.isEmpty()) 
-                    ? destinationName : "目标景点";
+                    ? destinationName : "终点";
                 lastStep.put("description", "步行" + distanceText + "至 " + destDesc);
             }
         }

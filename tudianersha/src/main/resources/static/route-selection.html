@@ -473,10 +473,6 @@
                   
                   detailHTML += `
                     <div class="${isWarning ? 'bg-red-50' : 'bg-purple-50'} p-3 rounded-lg my-2 border-l-4 border-purple-400">
-                      <div class="flex items-center gap-2 text-xs text-purple-600 font-medium mb-2">
-                        <i class="fa fa-arrow-right"></i>
-                        前往 ${departureTransport.toName || '第一个景点'}
-                      </div>
                       <div class="flex items-center justify-center gap-4 text-xs text-gray-600 mb-2">
                         <span><i class="fa fa-road"></i> ${departureTransport.distanceText || '未知'}</span>
                         <span><i class="fa fa-clock-o"></i> ${departureTransport.durationText || '未知'}</span>

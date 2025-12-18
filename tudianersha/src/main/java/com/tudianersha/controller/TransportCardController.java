@@ -26,22 +26,24 @@ public class TransportCardController {
     public ResponseEntity<?> generateTransport(@RequestBody Map<String, Object> request, HttpSession session) {
         try {
             User currentUser = (User) session.getAttribute("user");
-            if (currentUser == null) {
-                return ResponseEntity.status(401).body("未登录");
-            }
+            Long userId = currentUser != null ? currentUser.getId() : 0L;
             
             Long projectId = Long.valueOf(request.get("projectId").toString());
             Integer dayNumber = Integer.valueOf(request.get("dayNumber").toString());
-            String fromActivityId = request.get("fromActivityId").toString();
-            String toActivityId = request.get("toActivityId").toString();
-            String fromName = request.get("fromName").toString();
-            String toName = request.get("toName").toString();
-            String fromLocation = request.get("fromLocation").toString();
-            String toLocation = request.get("toLocation").toString();
+            String fromActivityId = request.get("fromActivityId") != null ? request.get("fromActivityId").toString() : "unknown";
+            String toActivityId = request.get("toActivityId") != null ? request.get("toActivityId").toString() : "unknown";
+            String fromName = request.get("fromName") != null ? request.get("fromName").toString() : "未知";
+            String toName = request.get("toName") != null ? request.get("toName").toString() : "未知";
+            String fromLocation = request.get("fromLocation") != null ? request.get("fromLocation").toString() : null;
+            String toLocation = request.get("toLocation") != null ? request.get("toLocation").toString() : null;
+            
+            if (fromLocation == null || toLocation == null) {
+                return ResponseEntity.badRequest().body("缺少位置信息: fromLocation=" + fromLocation + ", toLocation=" + toLocation);
+            }
             
             TransportCard card = transportCardService.generateTransport(
                 projectId, dayNumber, fromActivityId, toActivityId,
-                fromName, toName, fromLocation, toLocation, currentUser.getId()
+                fromName, toName, fromLocation, toLocation, userId
             );
             
             return ResponseEntity.ok(card);

@@ -21,10 +21,12 @@ import com.itextpdf.layout.properties.UnitValue;
 import com.tudianersha.entity.AiGeneratedRoute;
 import com.tudianersha.entity.TravelProject;
 import com.tudianersha.entity.ProjectTask;
+import com.tudianersha.entity.ProjectHotel;
 import com.tudianersha.entity.User;
 import com.tudianersha.repository.AiGeneratedRouteRepository;
 import com.tudianersha.repository.TravelProjectRepository;
 import com.tudianersha.repository.ProjectTaskRepository;
+import com.tudianersha.repository.ProjectHotelRepository;
 import com.tudianersha.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,9 @@ public class ItineraryPdfService {
     
     @Autowired
     private ProjectTaskRepository taskRepository;
+    
+    @Autowired
+    private ProjectHotelRepository hotelRepository;
     
     @Autowired
     private UserRepository userRepository;
@@ -269,6 +274,50 @@ public class ItineraryPdfService {
                     }
                     
                     document.add(table);
+                    
+                    // 添加当天酒店信息
+                    try {
+                        java.util.Optional<ProjectHotel> hotelOpt = hotelRepository.findByProjectIdAndDayIndex(projectId, dayNumber);
+                        if (hotelOpt.isPresent()) {
+                            ProjectHotel hotel = hotelOpt.get();
+                            
+                            // 创建酒店信息卡片
+                            Table hotelTable = new Table(UnitValue.createPercentArray(new float[]{100}))
+                                    .useAllAvailableWidth()
+                                    .setMarginTop(10)
+                                    .setMarginBottom(10);
+                            
+                            // 酒店标题行
+                            Cell hotelHeader = new Cell()
+                                    .add(new Paragraph("◆ 当日住宿").setFont(font).setFontSize(11).setBold())
+                                    .setBackgroundColor(new DeviceRgb(168, 85, 247))
+                                    .setFontColor(ColorConstants.WHITE)
+                                    .setPadding(8);
+                            hotelTable.addCell(hotelHeader);
+                            
+                            // 酒店详情
+                            StringBuilder hotelInfo = new StringBuilder();
+                            hotelInfo.append("酒店名称：").append(hotel.getHotelName()).append("\n");
+                            if (hotel.getHotelAddress() != null && !hotel.getHotelAddress().isEmpty()) {
+                                hotelInfo.append("地    址：").append(hotel.getHotelAddress()).append("\n");
+                            }
+                            if (hotel.getPricePerNight() != null && hotel.getPricePerNight().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                                hotelInfo.append("价    格：¥").append(hotel.getPricePerNight().setScale(2, java.math.RoundingMode.HALF_UP)).append("/晚");
+                                // 将酒店费用加入当日总预算
+                                dayTotalBudget += hotel.getPricePerNight().doubleValue();
+                            }
+                            
+                            Cell hotelContent = new Cell()
+                                    .add(new Paragraph(hotelInfo.toString()).setFont(font).setFontSize(10))
+                                    .setBackgroundColor(new DeviceRgb(250, 245, 255))
+                                    .setPadding(8);
+                            hotelTable.addCell(hotelContent);
+                            
+                            document.add(hotelTable);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("[PDF] 添加酒店信息失败: " + e.getMessage());
+                    }
                     
                     // 添加当日总预算
                     if (dayTotalBudget > 0) {

@@ -255,10 +255,35 @@
             padding: 4px 8px;
             border-radius: 6px;
             transition: all 0.2s;
+            border: 2px dashed #3b82f6;
+            position: relative;
         }
         
         .budget-item-price.editable:hover {
-            background: #f3f4f6;
+            background: #eff6ff;
+            border-color: #2563eb;
+            transform: scale(1.05);
+        }
+        
+        .budget-item-price.editable::after {
+            content: '✏️ 点击修改';
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e40af;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        
+        .budget-item-price.editable:hover::after {
+            opacity: 1;
         }
         
         .budget-item-price.blue {
@@ -735,7 +760,10 @@
                     <span style="font-size: 16px; font-weight: 600;">创建者设置的每日预算</span>
                     <button type="button" id="addBudgetItemBtn" class="edit-link" style="display: none; margin-left: auto; padding: 4px 12px; background: #10b981; color: white; border-radius: 6px; border: none; cursor: pointer;">➕ 添加预算项</button>
                 </div>
-                <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">以下是基本项目组成部分项目量，建议仅供参考</p>
+                <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">以下是基本项目组成部分项目量，建议仅供参考</p>
+                <p id="budgetEditHint" style="font-size: 12px; color: #3b82f6; margin-bottom: 20px; display: none; background: #eff6ff; padding: 8px 12px; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                    ✨ 提示：<strong>点击预算数字</strong>可以修改金额，鼠标悬停在数字上查看提示
+                </p>
                 
                 <div id="budgetItemsList">
                     <!-- 预算项将动态生成 -->
@@ -1811,6 +1839,9 @@
             
             // 显示添加按钮
             document.getElementById('addBudgetItemBtn').style.display = 'block';
+            
+            // 显示编辑提示
+            document.getElementById('budgetEditHint').style.display = 'block';
             
             // 渲染预算项
             renderBudgetItems();
